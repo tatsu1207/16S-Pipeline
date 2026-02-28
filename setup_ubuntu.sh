@@ -5,7 +5,7 @@
 #
 # Features:
 #   - Skips any component that is already installed
-#   - Auto-detects and installs mamba if missing
+#   - Auto-installs Miniforge3 (conda + mamba) if missing
 #   - Handles PICRUSt2 dependency conflicts gracefully
 #   - Re-runnable: safe to execute multiple times
 # ============================================================================
@@ -68,53 +68,64 @@ echo -e "${NC}"
 # ============================================================================
 step "0" "Checking Conda installation"
 
+MINIFORGE_DIR="${HOME}/miniforge3"
+MINIFORGE_INSTALLER="Miniforge3-Linux-$(uname -m).sh"
+
 if ! has_cmd conda; then
-    error "Conda is not installed or not in PATH.
-    
-    Install Miniconda:
-      wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-      bash Miniconda3-latest-Linux-x86_64.sh -b -p \$HOME/miniconda3
-      eval \"\$(\$HOME/miniconda3/bin/conda shell.bash hook)\"
-      conda init bash
-      source ~/.bashrc
-    
-    Then re-run this script."
+    # Check if Miniforge3 exists but isn't in PATH
+    if [[ -x "${MINIFORGE_DIR}/bin/conda" ]]; then
+        info "Miniforge3 found at ${MINIFORGE_DIR} but not in PATH. Activating..."
+        eval "$("${MINIFORGE_DIR}/bin/conda" shell.bash hook)"
+        conda init bash 2>/dev/null
+        success "Miniforge3 activated from ${MINIFORGE_DIR}"
+    else
+        info "Conda not found. Installing Miniforge3 (includes conda + mamba)..."
+
+        if ! has_cmd wget && ! has_cmd curl; then
+            error "Neither wget nor curl found. Install one first: sudo apt install wget"
+        fi
+
+        MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/latest/download/${MINIFORGE_INSTALLER}"
+
+        if [[ -f "/tmp/${MINIFORGE_INSTALLER}" ]]; then
+            info "Using cached installer at /tmp/${MINIFORGE_INSTALLER}"
+        elif has_cmd wget; then
+            info "Downloading Miniforge3..."
+            wget -q --show-progress -O "/tmp/${MINIFORGE_INSTALLER}" "${MINIFORGE_URL}"
+        else
+            info "Downloading Miniforge3..."
+            curl -fsSL -o "/tmp/${MINIFORGE_INSTALLER}" "${MINIFORGE_URL}"
+        fi
+
+        bash "/tmp/${MINIFORGE_INSTALLER}" -b -p "${MINIFORGE_DIR}"
+        eval "$("${MINIFORGE_DIR}/bin/conda" shell.bash hook)"
+        conda init bash 2>/dev/null
+        success "Miniforge3 installed to ${MINIFORGE_DIR}"
+        installed
+    fi
+else
+    success "Conda already installed."
 fi
 
 CONDA_VERSION=$(conda --version 2>&1)
-success "Conda found: ${CONDA_VERSION}"
+info "Conda version: ${CONDA_VERSION}"
 
 # Make sure conda commands work in this script
 eval "$(conda shell.bash hook)"
 
 # ============================================================================
-# STEP 1: Detect or install Mamba
+# STEP 1: Verify Mamba (included with Miniforge3)
 # ============================================================================
-step "1" "Checking for Mamba (faster dependency resolver)"
-
-SOLVER="conda"
+step "1" "Checking for Mamba"
 
 if has_cmd mamba; then
     MAMBA_VERSION=$(mamba --version 2>&1 | head -1)
-    skip "Mamba (${MAMBA_VERSION})"
+    success "Mamba found: ${MAMBA_VERSION}"
     SOLVER="mamba"
 else
-    info "Mamba not found. Installing mamba into base environment..."
-    info "This speeds up all future Conda operations significantly."
-    
-    conda install -n base -c conda-forge mamba -y 2>&1 | tail -5
-    
-    if has_cmd mamba; then
-        success "Mamba installed successfully."
-        SOLVER="mamba"
-        installed
-    else
-        warn "Mamba installation failed. Falling back to Conda (slower but works fine)."
-        SOLVER="conda"
-    fi
+    warn "Mamba not found. Using conda (slower). Consider installing Miniforge3 for mamba support."
+    SOLVER="conda"
 fi
-
-info "Using solver: ${SOLVER}"
 
 # ============================================================================
 # STEP 2: Create Conda environment
