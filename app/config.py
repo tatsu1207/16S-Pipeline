@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 # --- Paths ---
-PROJECT_DIR = Path("/home/unnot/microbiome-dashboard")
+PROJECT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_DIR / "data"
 UPLOAD_DIR = DATA_DIR / "uploads"
 DATASET_DIR = DATA_DIR / "datasets"
@@ -26,7 +26,7 @@ SILVA_SPECIES = REFERENCE_DIR / "silva_species_assignment_v138.1.fa.gz"
 # --- Conda ---
 CONDA_ENV_NAME = "microbiome"
 PICRUST2_ENV_NAME = "picrust2"
-CONDA_BASE = Path(os.environ.get("CONDA_BASE", "/home/unnot/miniforge3"))
+CONDA_BASE = Path(os.environ.get("CONDA_BASE", Path.home() / "miniforge3"))
 
 
 def conda_cmd(args: list[str], env_name: str | None = None) -> list[str]:
