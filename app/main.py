@@ -31,6 +31,7 @@ import app.dashboard.pages.biom_browser_page  # noqa: F401
 import app.dashboard.pages.subsampling_page  # noqa: F401
 import app.dashboard.pages.rare_asv_page  # noqa: F401
 import app.dashboard.pages.kegg_map_page  # noqa: F401
+import app.dashboard.pages.picrust2_page  # noqa: F401
 
 
 # ── FastAPI application ───────────────────────────────────────────────────────
