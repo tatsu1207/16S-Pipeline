@@ -35,8 +35,13 @@ step()    { echo -e "\n${CYAN}━━━━━━━━━━━━━━━━�
             echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"; }
 installed() { ((INSTALLED_COUNT++)) || true; }
 
-# Check if a command exists in the current environment
+# Check if a command exists anywhere in PATH
 has_cmd() { command -v "$1" &> /dev/null; }
+
+# Check if a command exists specifically in the conda environment
+has_env_cmd() {
+    [[ -n "${ENV_PREFIX}" ]] && [[ -x "${ENV_PREFIX}/bin/$1" ]]
+}
 
 # Check if a Python package is importable in the target env
 has_python_pkg() {
@@ -174,17 +179,17 @@ BIOTOOLS_MAP=(
 for tool_pair in "${BIOTOOLS_MAP[@]}"; do
     pkg="${tool_pair%%:*}"
     cmds="${tool_pair##*:}"
-    
-    # Check if any of the command variants exist
+
+    # Check if any of the command variants exist in the conda environment
     found=false
     IFS=',' read -ra CMD_ARRAY <<< "${cmds}"
     for cmd in "${CMD_ARRAY[@]}"; do
-        if has_cmd "${cmd}"; then
+        if has_env_cmd "${cmd}"; then
             found=true
             break
         fi
     done
-    
+
     if ${found}; then
         skip "${pkg}"
     else
