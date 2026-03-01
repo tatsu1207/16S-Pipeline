@@ -249,7 +249,9 @@ def on_upload_biom(contents, filename):
 def on_select_dataset(dataset_id):
     """Load BIOM path from a completed DADA2 dataset."""
     if not dataset_id:
-        return None, ""
+        # Return no_update so that a programmatic clear (e.g. from on_upload_biom)
+        # does not wipe out biom_data that was just set by the upload callback.
+        return no_update, no_update
 
     from app.db.database import get_session
     from app.db.models import Dataset
