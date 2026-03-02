@@ -42,7 +42,7 @@ def aggregate_taxonomy(
             ranks = md["taxonomy"]
             if isinstance(ranks, str):
                 ranks = [r.strip() for r in ranks.split(";")]
-            if level_idx < len(ranks) and ranks[level_idx]:
+            if ranks and level_idx < len(ranks) and ranks[level_idx]:
                 tax_map[obs_id] = ranks[level_idx]
             else:
                 tax_map[obs_id] = "Unassigned"
@@ -141,7 +141,7 @@ def aggregate_counts_by_level(biom_path: str, level: str) -> pd.DataFrame:
             ranks = md["taxonomy"]
             if isinstance(ranks, str):
                 ranks = [r.strip() for r in ranks.split(";")]
-            if level_idx < len(ranks) and ranks[level_idx]:
+            if ranks and level_idx < len(ranks) and ranks[level_idx]:
                 tax_map[obs_id] = ranks[level_idx]
             else:
                 tax_map[obs_id] = "Unassigned"

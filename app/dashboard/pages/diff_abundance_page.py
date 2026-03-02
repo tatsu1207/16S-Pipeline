@@ -133,6 +133,7 @@ def get_layout():
                         dbc.Label("Group Column", className="fw-bold"),
                         dbc.Select(id="da-group-col", placeholder="Select or upload metadata...",
                                    className="mb-2"),
+                        html.Div(id="da-group-info", className="mb-2"),
 
                         # Single-pair selectors (hidden in pairwise mode)
                         html.Div(id="da-single-group-section", children=[
@@ -381,6 +382,7 @@ def _build_pairwise_results_filtered(records_df, tool_name, header_alert,
     Output("da-sample-id-col", "data"),
     Output("da-meta-status", "children"),
     Output("da-group-col", "options"),
+    Output("da-group-info", "children", allow_duplicate=True),
     Output("da-btn-run", "disabled"),
     Input("da-upload-biom", "contents"),
     Input("da-select-pipeline", "value"),
@@ -404,6 +406,7 @@ def on_input_change(biom_contents, pipeline_value, meta_contents,
     sid_col = prev_sid_col
     meta_status = no_update
     group_opts = no_update
+    group_info = no_update
     btn_disabled = no_update
 
     if trigger == "da-select-pipeline" and not pipeline_value:
@@ -414,9 +417,10 @@ def on_input_change(biom_contents, pipeline_value, meta_contents,
         sid_col = None
         meta_status = ""
         group_opts = []
+        group_info = ""
         btn_disabled = True
         return (biom_path, biom_name, biom_status, meta_json, sid_col,
-                meta_status, group_opts, btn_disabled)
+                meta_status, group_opts, group_info, btn_disabled)
 
     from pathlib import Path as _P
 
@@ -501,25 +505,62 @@ def on_input_change(biom_contents, pipeline_value, meta_contents,
             btn_disabled = biom_path is None or len(gcols) == 0
 
     return (biom_path, biom_name, biom_status, meta_json, sid_col,
-            meta_status, group_opts, btn_disabled)
+            meta_status, group_opts, group_info, btn_disabled)
 
 
 @dash_app.callback(
     Output("da-ref-group", "options"),
     Output("da-test-group", "options"),
+    Output("da-group-info", "children"),
     Input("da-group-col", "value"),
     State("da-meta-store", "data"),
     State("da-sample-id-col", "data"),
+    State("da-biom-path", "data"),
     prevent_initial_call=True,
 )
-def on_group_col_change(group_col, meta_json, sid_col):
+def on_group_col_change(group_col, meta_json, sid_col, biom_path):
     if not group_col or not meta_json:
-        return [], []
+        return [], [], ""
 
     meta_df = pd.read_json(io.StringIO(meta_json), orient="split")
-    unique_vals = sorted(meta_df[group_col].dropna().unique().tolist())
+
+    # Intersect with BIOM samples if available
+    if biom_path:
+        try:
+            table = load_table(biom_path)
+            biom_ids = set(str(s) for s in table.ids(axis="sample"))
+            meta_df = meta_df[meta_df[sid_col].astype(str).isin(biom_ids)]
+        except Exception:
+            pass
+
+    counts = meta_df[group_col].dropna().value_counts()
+    unique_vals = sorted(counts.index.tolist())
     options = [{"label": str(v), "value": str(v)} for v in unique_vals]
-    return options, options
+
+    # Build per-group sample count summary
+    lines = [html.Span(f"{v}: {counts[v]} samples", className="d-block small")
+             for v in unique_vals]
+
+    low_groups = [str(v) for v in unique_vals if counts[v] < 3]
+    if low_groups:
+        info = dbc.Alert(
+            [
+                html.Strong("Warning: "),
+                f"Groups with < 3 samples ({', '.join(low_groups)}) "
+                "may cause DA tools to fail.",
+                html.Div(lines, className="mt-1"),
+            ],
+            color="warning",
+            className="py-2 small",
+        )
+    else:
+        info = dbc.Alert(
+            lines,
+            color="info",
+            className="py-2 small",
+        )
+
+    return options, options, info
 
 
 # ── Pairwise toggle ─────────────────────────────────────────────────────────

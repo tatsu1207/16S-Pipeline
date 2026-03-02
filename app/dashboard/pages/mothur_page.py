@@ -269,7 +269,7 @@ def on_upload_biom(contents, filename):
         filename,
         html.Span(f"  {filename}", className="text-success"),
         False,   # enable convert button
-        "",      # clear pipeline selector
+        no_update,  # don't touch pipeline selector (avoids re-triggering on_select_pipeline)
         hide,    # hide old details
         hide,    # hide old download
         "",      # clear error

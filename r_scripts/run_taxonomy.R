@@ -43,12 +43,14 @@ tryCatch({
 
   cat("Loaded", length(seqs), "ASV sequences\n")
 
+  use_mt <- ifelse(opt$threads > 1, opt$threads, FALSE)
+
   # Assign taxonomy to genus level
   cat("Assigning taxonomy (this may take a while)...\n")
   taxa <- assignTaxonomy(seqs, opt$silva_train,
-                         multithread=(opt$threads > 1))
+                         multithread=use_mt)
 
-  # Add species-level assignment
+  # Add species-level assignment (addSpecies does not support multithread)
   cat("Adding species assignments...\n")
   taxa <- addSpecies(taxa, opt$silva_species)
 

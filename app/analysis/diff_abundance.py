@@ -30,6 +30,8 @@ def _attach_taxonomy(df: pd.DataFrame, biom_path: str) -> pd.DataFrame:
             ranks = md["taxonomy"]
             if isinstance(ranks, str):
                 ranks = [r.strip() for r in ranks.split(";")]
+            if not ranks:
+                continue
             row = {"feature": obs_id}
             for i, rank_name in enumerate(_TAX_RANKS):
                 row[rank_name] = ranks[i] if i < len(ranks) and ranks[i] else ""
