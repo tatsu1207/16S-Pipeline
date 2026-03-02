@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # ============================================================================
-# MicrobiomeDash Setup Script
-# One-command installation for the 16S rRNA Microbiome Analysis Dashboard
+# 16S Analyzer Setup Script
+# One-command installation for the 16S Analyzer
+#
+# Architecture: 4 separate conda environments
+#   microbiome — Python 3.11 + CLI bioinformatics tools (web app runs here)
+#   dada2     — R 4.3 + bioconductor-dada2 (pre-built, zero compilation)
+#   analysis  — R 4.3 + phyloseq/ANCOMBC/DESeq2/ALDEx2/Maaslin2/vegan + LinDA
+#   picrust2  — PICRUSt2 (unchanged)
 #
 # Features:
 #   - Skips any component that is already installed
 #   - Auto-installs Miniforge3 (conda + mamba) if missing
-#   - Handles PICRUSt2 dependency conflicts gracefully
+#   - Uses bioconda pre-built R packages — no source compilation needed
 #   - Re-runnable: safe to execute multiple times
 # ============================================================================
 
@@ -37,13 +43,6 @@ step()    { echo -e "\n${CYAN}━━━━━━━━━━━━━━━━�
             echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"; }
 installed() { ((INSTALLED_COUNT++)) || true; }
 failed() { ((FAILED_COUNT++)) || true; FAILED_COMPONENTS+=("$1"); warn "Failed to install $1."; }
-
-# Remove stale R library lock files that block subsequent installs
-clean_r_locks() {
-    if [[ -n "${ENV_PREFIX:-}" ]] && ls "${ENV_PREFIX}/lib/R/library"/00LOCK-* &>/dev/null; then
-        rm -rf "${ENV_PREFIX}/lib/R/library"/00LOCK-*
-    fi
-}
 
 # Run a command while printing dots every 5 seconds to show it's still alive.
 # Usage: run_with_dots "label" command arg1 arg2 ...
@@ -88,45 +87,58 @@ cleanup_on_error() {
 }
 trap cleanup_on_error EXIT
 
+# Remove stale (non-conda) env directories that block mamba create
+clean_stale_env_dir() {
+    local env_name="$1"
+    local env_dir
+    env_dir="$(conda info --base)/envs/${env_name}"
+    if [[ -d "${env_dir}" ]] && [[ ! -f "${env_dir}/conda-meta/history" ]]; then
+        warn "Removing stale non-conda directory at ${env_dir}"
+        rm -rf "${env_dir}"
+    fi
+}
+
 # Check if a command exists anywhere in PATH
 has_cmd() { command -v "$1" &> /dev/null; }
 
-# Check if a command exists specifically in the conda environment
+# Check if a command exists specifically in a conda environment
 has_env_cmd() {
-    [[ -n "${ENV_PREFIX}" ]] && [[ -x "${ENV_PREFIX}/bin/$1" ]]
+    local env_prefix="$1" cmd="$2"
+    [[ -n "${env_prefix}" ]] && [[ -x "${env_prefix}/bin/${cmd}" ]]
 }
 
-# Check if a Python package is importable in the target env
+# Check if a Python package is importable in a given env
 has_python_pkg() {
-    conda run -n "${ENV_NAME}" python -c "import $1" 2>/dev/null
+    conda run -n "$1" python -c "import $2" 2>/dev/null
 }
 
-# Check if an R package is installed in the target env
+# Check if an R package is installed in a given env
 has_r_pkg() {
-    conda run -n "${ENV_NAME}" Rscript -e "if (!requireNamespace('$1', quietly=TRUE)) quit(status=1)" 2>/dev/null
+    conda run -n "$1" Rscript -e "if (!requireNamespace('$2', quietly=TRUE)) quit(status=1)" 2>/dev/null
 }
 
 # --- Configuration ---
-ENV_NAME="microbiome"
+ENV_NAME="microbiome_16S"
+DADA2_ENV="dada2_16S"
+ANALYSIS_ENV="analysis_16S"
+PICRUST2_ENV="picrust2_16S"
 PYTHON_VERSION="3.11"
-R_VERSION="4.3"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="${PROJECT_DIR}/data"
 SILVA_DIR="${DATA_DIR}/references"
 
 echo -e "${GREEN}"
 echo "  ╔══════════════════════════════════════════════════════╗"
-echo "  ║       🧬 MicrobiomeDash — Setup Script              ║"
-echo "  ║       16S rRNA Microbiome Analysis Dashboard         ║"
+echo "  ║       🧬 16S Analyzer — Setup Script                  ║"
+echo "  ║       16S rRNA Microbiome Analysis                   ║"
 echo "  ╚══════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
 # ============================================================================
 # STEP 0a: Install system dependencies
 # ============================================================================
-step "0a" "Checking system libraries (needed for R package compilation)"
+step "0a" "Checking system libraries"
 
-# These are required to compile dada2 (Rhtslib), curl/RCurl, openssl, xml2, and png from source.
 SYS_DEPS=(libbz2-dev liblzma-dev libcurl4-openssl-dev zlib1g-dev libssl-dev libxml2-dev libpng-dev)
 SYS_MISSING=()
 
@@ -145,7 +157,7 @@ if [ ${#SYS_MISSING[@]} -gt 0 ]; then
         success "System libraries installed."
         installed
     else
-        warn "Could not install system libraries. R packages that compile from source may fail."
+        warn "Could not install system libraries."
         warn "Try manually: sudo apt-get install -y ${SYS_MISSING[*]}"
     fi
 else
@@ -217,79 +229,40 @@ else
 fi
 
 # ============================================================================
-# STEP 2: Create Conda environment
+# STEP 2: Create 'microbiome' environment (Python + CLI tools)
 # ============================================================================
-step "2" "Checking Conda environment '${ENV_NAME}'"
+step "2" "Checking Conda environment '${ENV_NAME}' (Python + CLI tools)"
 
 if conda env list | grep -q "^${ENV_NAME} "; then
     skip "Conda environment '${ENV_NAME}'"
     info "To recreate from scratch, run: conda env remove -n ${ENV_NAME} && ./setup_ubuntu.sh"
 else
-    info "Creating environment with Python ${PYTHON_VERSION} and R ${R_VERSION}..."
-    if ! ${SOLVER} create -n "${ENV_NAME}" python=${PYTHON_VERSION} r-base=${R_VERSION} -y; then
-        error "Failed to create conda environment '${ENV_NAME}'. Check disk space and network connectivity."
+    info "Creating '${ENV_NAME}' environment with Python ${PYTHON_VERSION}..."
+    if ! ${SOLVER} create -n "${ENV_NAME}" -c conda-forge python=${PYTHON_VERSION} -y; then
+        error "Failed to create conda environment '${ENV_NAME}'."
     fi
     success "Environment '${ENV_NAME}' created."
     installed
 fi
 
-# Activate environment
+# Activate for tool installs
 if ! conda activate "${ENV_NAME}" 2>/dev/null; then
-    error "Failed to activate conda environment '${ENV_NAME}'. Try: conda env remove -n ${ENV_NAME} && ./setup_ubuntu.sh"
+    error "Failed to activate conda environment '${ENV_NAME}'."
 fi
 success "Activated environment: ${ENV_NAME}"
 
-# Pin r-base to prevent accidental upgrades that break Bioconductor packages
 ENV_PREFIX=$(conda info --envs | grep "^${ENV_NAME} " | awk '{print $NF}')
-PINNED_FILE="${ENV_PREFIX}/conda-meta/pinned"
-if ! grep -q "r-base" "${PINNED_FILE}" 2>/dev/null; then
-    mkdir -p "${ENV_PREFIX}/conda-meta"
-    echo "r-base ${R_VERSION}.*" >> "${PINNED_FILE}"
-    success "Pinned r-base to ${R_VERSION}.* (prevents upgrade breaking Bioconductor)"
-fi
 
-# ============================================================================
-# STEP 2b: Install C libraries inside conda env (needed by conda's GCC)
-# ============================================================================
-step "2b" "Checking C libraries in conda environment"
+# Install bioinformatics CLI tools individually (avoids cross-channel conflicts)
+info "Checking bioinformatics CLI tools..."
 
-# Conda's R uses its own GCC which only searches conda lib paths, not system paths.
-# These must be in the conda env for R packages to compile from source.
-# Also includes R packages with C bindings (r-curl) that are hard to compile from source.
-CONDA_CLIBS=(zlib libpng bzip2 xz openssl libcurl hdf5 glpk gmp r-curl r-ragg r-cairo r-microbenchmark)
-CONDA_CLIBS_MISSING=()
-for lib in "${CONDA_CLIBS[@]}"; do
-    if ${SOLVER} list -n "${ENV_NAME}" "^${lib}$" 2>/dev/null | grep -q "${lib}"; then
-        skip "Conda lib: ${lib}"
-    else
-        CONDA_CLIBS_MISSING+=("${lib}")
-    fi
-done
-
-if [ ${#CONDA_CLIBS_MISSING[@]} -gt 0 ]; then
-    info "Installing C libraries in conda env: ${CONDA_CLIBS_MISSING[*]}"
-    for lib in "${CONDA_CLIBS_MISSING[@]}"; do
-        ${SOLVER} install -n "${ENV_NAME}" -c conda-forge "${lib}" -y 2>&1 | tail -3 || \
-            warn "Failed to install conda lib: ${lib}"
-    done
-    success "Conda C libraries installed."
-    installed
-else
-    info "All C libraries already present in conda env."
-fi
-
-# ============================================================================
-# STEP 3: Install bioinformatics CLI tools via Conda
-# ============================================================================
-step "3" "Checking bioinformatics CLI tools"
-
-BIOTOOLS_TO_INSTALL=()
-
-# Each entry: "conda_package:cmd1,cmd2" (cmd variants to check)
+# Each entry: "conda_package:cmd1,cmd2"
 BIOTOOLS_MAP=(
     "fastqc:fastqc"
     "cutadapt:cutadapt"
     "mafft:mafft"
+    "fasttree:FastTree,fasttree"
+    "bbmap:bbduk.sh"
 )
 
 for tool_pair in "${BIOTOOLS_MAP[@]}"; do
@@ -300,298 +273,56 @@ for tool_pair in "${BIOTOOLS_MAP[@]}"; do
     found=false
     IFS=',' read -ra CMD_ARRAY <<< "${cmds}"
     for cmd in "${CMD_ARRAY[@]}"; do
-        if has_env_cmd "${cmd}"; then
+        if has_env_cmd "${ENV_PREFIX}" "${cmd}"; then
             found=true
             break
         fi
     done
 
     if ${found}; then
-        skip "${pkg}"
+        skip "CLI tool: ${pkg}"
     else
-        BIOTOOLS_TO_INSTALL+=("${pkg}")
-    fi
-done
-
-if [ ${#BIOTOOLS_TO_INSTALL[@]} -gt 0 ]; then
-    info "Installing missing tools individually: ${BIOTOOLS_TO_INSTALL[*]}"
-
-    for pkg in "${BIOTOOLS_TO_INSTALL[@]}"; do
         info "Installing ${pkg} ..."
         run_with_dots "conda: ${pkg}" \
-            ${SOLVER} install -n "${ENV_NAME}" -c bioconda -c conda-forge "${pkg}" -y
+            ${SOLVER} install -n "${ENV_NAME}" --override-channels -c conda-forge -c bioconda "${pkg}" -y
         echo "${RWD_OUTPUT:-}" | tail -5 || true
-        if [[ ${RWD_EXIT} -ne 0 ]]; then
-            warn "Conda/Mamba failed for ${pkg}:"
-            echo "${RWD_OUTPUT:-}" | tail -20 || true
-        fi
 
-        # Verify the tool is actually available; fall back to pip if conda failed
-        for tool_pair in "${BIOTOOLS_MAP[@]}"; do
-            map_pkg="${tool_pair%%:*}"
-            if [[ "${map_pkg}" == "${pkg}" ]]; then
-                cmds="${tool_pair##*:}"
-                IFS=',' read -ra CMD_ARRAY <<< "${cmds}"
-                found=false
-                for cmd in "${CMD_ARRAY[@]}"; do
-                    if has_env_cmd "${cmd}"; then
-                        found=true
-                        break
-                    fi
-                done
-                if ${found}; then
-                    success "Verified: ${pkg}"
-                    installed
-                else
-                    # Fallback: try pip install (works for pure-Python tools like cutadapt)
-                    warn "Conda failed for ${pkg}, trying pip install as fallback..."
-                    pip install "${pkg}" 2>&1 | tail -5 || true
-                    # Re-check
-                    for cmd in "${CMD_ARRAY[@]}"; do
-                        if has_env_cmd "${cmd}"; then
-                            found=true
-                            break
-                        fi
-                    done
-                    if ${found}; then
-                        success "Verified (via pip): ${pkg}"
-                        installed
-                    else
-                        failed "CLI tool: ${pkg}"
-                    fi
-                fi
+        # Re-check
+        found=false
+        for cmd in "${CMD_ARRAY[@]}"; do
+            if has_env_cmd "${ENV_PREFIX}" "${cmd}"; then
+                found=true
                 break
             fi
         done
-    done
-else
-    info "All bioinformatics CLI tools already present."
-fi
 
-# ============================================================================
-# STEP 4: Install PICRUSt2
-# ============================================================================
-step "4" "Checking PICRUSt2 (separate environment)"
-
-PICRUST2_SEPARATE=true
-
-if conda env list | grep -q "^picrust2 "; then
-    skip "PICRUSt2 (picrust2 environment)"
-else
-    info "Creating separate 'picrust2' environment..."
-    info "PICRUSt2 requires its own environment to avoid dependency conflicts."
-
-    run_with_dots "conda: picrust2" \
-        ${SOLVER} create -n picrust2 -c bioconda -c conda-forge picrust2 -y
-    echo "${RWD_OUTPUT:-}" | tail -5 || true
-    if [[ ${RWD_EXIT} -eq 0 ]]; then
-        success "PICRUSt2 installed in separate 'picrust2' environment."
-        installed
-    else
-        warn "PICRUSt2 installation failed. You can install it manually later."
-        warn "The pipeline will skip PICRUSt2 steps if it's not available."
-    fi
-fi
-
-# ============================================================================
-# STEP 5: Install R packages (BiocManager/CRAN primary, conda not used)
-# ============================================================================
-step "5" "Checking R packages"
-
-# Ensure R can find packages in the conda env during byte-compilation.
-# Without this, R's findpack() fails for packages like igraph during lazy loading.
-R_LIB_DIR="${ENV_PREFIX}/lib/R/library"
-export R_LIBS_USER="${R_LIB_DIR}"
-export R_LIBS_SITE="${R_LIB_DIR}"
-
-# Clean up stale R lock files from previously interrupted installs
-if ls "${R_LIB_DIR}"/00LOCK-* &>/dev/null; then
-    info "Removing stale R lock files from previous interrupted installs..."
-    rm -rf "${R_LIB_DIR}"/00LOCK-*
-    success "Lock files cleaned up."
-fi
-
-# --- 5a: Ensure BiocManager is installed and version-matched to R ---
-info "Checking BiocManager version matches R..."
-BIOCMGR_SCRIPT=$(mktemp /tmp/biocmgr_XXXXXX.R)
-cat > "${BIOCMGR_SCRIPT}" << 'REOF'
-if (!requireNamespace('BiocManager', quietly=TRUE))
-    install.packages('BiocManager', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
-
-tryCatch({
-    BiocManager::install(ask=FALSE, update=FALSE)
-    message(sprintf('BiocManager %s OK for %s', BiocManager::version(), R.version.string))
-}, error = function(e) {
-    message('BiocManager version mismatch detected, upgrading...')
-    m <- regmatches(e$message, regexpr("version = '[0-9.]+'", e$message))
-    if (length(m) > 0) {
-        ver <- gsub("version = '|'", '', m)
-        message(sprintf('Upgrading to Bioconductor %s', ver))
-        BiocManager::install(version=ver, ask=FALSE)
-    } else {
-        message('Could not auto-detect version, trying fresh BiocManager...')
-        install.packages('BiocManager', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
-        BiocManager::install(ask=FALSE, update=FALSE)
-    }
-    message(sprintf('BiocManager now at %s', BiocManager::version()))
-})
-REOF
-run_with_dots "BiocManager check" Rscript "${BIOCMGR_SCRIPT}"
-echo "${RWD_OUTPUT:-}" | tail -5 || true
-rm -f "${BIOCMGR_SCRIPT}"
-if [[ ${RWD_EXIT} -ne 0 ]]; then
-    warn "BiocManager version check had issues (may be OK)."
-fi
-
-# Update CRAN packages that conda ships as outdated versions.
-# lifecycle >= 1.0.5 is required by treeio and many other modern R packages.
-info "Updating core R dependencies from CRAN..."
-run_with_dots "R: core deps" \
-    Rscript -e "install.packages(c('lifecycle', 'rlang', 'cli', 'vctrs', 'pillar'), repos='https://cloud.r-project.org', INSTALL_opts='--no-lock', Ncpus=4)"
-if [[ ${RWD_EXIT} -ne 0 ]]; then
-    warn "Some core R deps may not have updated (continuing anyway)."
-fi
-
-# --- 5b-pre: treeio (Bioc 3.18's treeio 1.26.0 uses tidytree::random_ref
-# which was removed from tidytree. Install latest from GitHub instead.) ---
-if has_r_pkg "treeio"; then
-    skip "R package: treeio"
-else
-    info "Installing treeio from GitHub (Bioc 3.18 version has a bug)..."
-    clean_r_locks
-    run_with_dots "R: treeio (GitHub)" \
-        Rscript -e "
-        if (!requireNamespace('remotes', quietly=TRUE))
-            install.packages('remotes', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
-        remotes::install_github('YuLab-SMU/treeio', upgrade='never', INSTALL_opts='--no-lock')
-    "
-    if has_r_pkg "treeio"; then
-        echo "${RWD_OUTPUT:-}" | tail -5 || true
-        success "R package installed: treeio (GitHub)"
-        installed
-    else
-        warn "Install output for treeio:"
-        echo "${RWD_OUTPUT:-}" | tail -30 || true
-        failed "R package: treeio"
-    fi
-fi
-
-# --- 5b-pre2: ggrepel (needs older version for R 4.3; required by scater) ---
-if has_r_pkg "ggrepel"; then
-    skip "R package: ggrepel"
-else
-    info "Installing ggrepel 0.9.6 (0.9.7 requires R >= 4.5)..."
-    clean_r_locks
-    run_with_dots "R: ggrepel" \
-        Rscript -e "install.packages('https://cran.r-project.org/src/contrib/Archive/ggrepel/ggrepel_0.9.6.tar.gz', repos=NULL, type='source', INSTALL_opts='--no-lock')"
-    if has_r_pkg "ggrepel"; then
-        success "R package installed: ggrepel 0.9.6"
-        installed
-    else
-        warn "Install output for ggrepel:"
-        echo "${RWD_OUTPUT:-}" | tail -20 || true
-        failed "R package: ggrepel"
-    fi
-fi
-
-# --- 5b: Install all R packages via BiocManager/CRAN ---
-# BiocManager::install() handles both CRAN and Bioconductor packages.
-# Packages are installed one-by-one to isolate failures.
-# --no-lock avoids 00LOCK directory issues in conda R environments.
-R_PACKAGES=(
-    # CRAN packages (directly used by R scripts)
-    optparse
-    jsonlite
-    vegan
-    # Bioconductor packages (directly used by R scripts)
-    dada2
-    phyloseq
-    # ANCOMBC dependency chain — installed individually before ANCOMBC so that
-    # one failure doesn't cascade and block the rest.
-    curl
-    httr
-    ggrastr
-    TreeSummarizedExperiment
-    scater
-    mia
-    ANCOMBC
-    ALDEx2
-    DESeq2
-    Maaslin2
-)
-
-for r_pkg in "${R_PACKAGES[@]}"; do
-    if has_r_pkg "${r_pkg}"; then
-        skip "R package: ${r_pkg}"
-    else
-        info "Installing ${r_pkg} ..."
-        clean_r_locks
-
-        # Try normal install first. Fall back to --no-lock on lock errors.
-        run_with_dots "R: ${r_pkg}" \
-            Rscript -e "
-            if (!requireNamespace('BiocManager', quietly=TRUE))
-                install.packages('BiocManager', repos='https://cloud.r-project.org')
-            BiocManager::install('${r_pkg}', ask=FALSE, update=FALSE)
-        "
-        if ! has_r_pkg "${r_pkg}"; then
-            # Check if it was a lock failure and retry with --no-lock
-            if echo "${RWD_OUTPUT:-}" | grep -q "failed to lock directory"; then
-                warn "Lock error detected, retrying ${r_pkg} with --no-lock..."
-                clean_r_locks
-                run_with_dots "R: ${r_pkg} (no-lock)" \
-                    Rscript -e "
-                    if (!requireNamespace('BiocManager', quietly=TRUE))
-                        install.packages('BiocManager', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
-                    BiocManager::install('${r_pkg}', ask=FALSE, update=FALSE, INSTALL_opts='--no-lock')
-                "
-            fi
-        fi
-
-        if has_r_pkg "${r_pkg}"; then
-            echo "${RWD_OUTPUT:-}" | tail -5 || true
-            success "R package installed: ${r_pkg}"
+        if ${found}; then
+            success "Installed: ${pkg}"
             installed
         else
-            warn "Install output for ${r_pkg}:"
-            echo "${RWD_OUTPUT:-}" | tail -30 || true
-            failed "R package: ${r_pkg}"
+            # Fallback: try pip (works for pure-Python tools like cutadapt)
+            warn "Conda failed for ${pkg}, trying pip fallback..."
+            pip install "${pkg}" 2>&1 | tail -5 || true
+            found=false
+            for cmd in "${CMD_ARRAY[@]}"; do
+                if has_env_cmd "${ENV_PREFIX}" "${cmd}"; then
+                    found=true
+                    break
+                fi
+            done
+            if ${found}; then
+                success "Installed (via pip): ${pkg}"
+                installed
+            else
+                failed "CLI tool: ${pkg}"
+            fi
         fi
     fi
 done
 
-# --- 5d: LinDA (GitHub-only R package) ---
-if has_r_pkg "LinDA"; then
-    skip "R package: LinDA"
-else
-    info "Installing LinDA from GitHub..."
-    clean_r_locks
-    run_with_dots "GitHub: LinDA" \
-        Rscript -e "
-        if (!requireNamespace('BiocManager', quietly=TRUE))
-            install.packages('BiocManager', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
-        if (!requireNamespace('remotes', quietly=TRUE))
-            install.packages('remotes', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
-        if (!requireNamespace('modeest', quietly=TRUE))
-            install.packages('modeest', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
-        remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock')
-    "
-    echo "${RWD_OUTPUT:-}" | tail -10 || true
+# Install Python packages via pip
+info "Checking Python packages..."
 
-    if has_r_pkg "LinDA"; then
-        success "LinDA installed from GitHub."
-        installed
-    else
-        failed "R package: LinDA"
-    fi
-fi
-
-# ============================================================================
-# STEP 6: Install Python packages
-# ============================================================================
-step "6" "Checking Python packages"
-
-# Each entry: "import_module:pip_package_name"
 PYTHON_PACKAGES=(
     "fastapi:fastapi"
     "uvicorn:uvicorn[standard]"
@@ -616,8 +347,8 @@ PYTHON_MISSING=()
 for pair in "${PYTHON_PACKAGES[@]}"; do
     module="${pair%%:*}"
     pip_name="${pair##*:}"
-    
-    if has_python_pkg "${module}"; then
+
+    if has_python_pkg "${ENV_NAME}" "${module}"; then
         skip "Python: ${pip_name}"
     else
         PYTHON_MISSING+=("${pip_name}")
@@ -625,10 +356,9 @@ for pair in "${PYTHON_PACKAGES[@]}"; do
 done
 
 if [ ${#PYTHON_MISSING[@]} -gt 0 ]; then
-    info "Installing missing Python packages individually: ${PYTHON_MISSING[*]}"
+    info "Installing missing Python packages: ${PYTHON_MISSING[*]}"
 
     for pip_name in "${PYTHON_MISSING[@]}"; do
-        # Find matching module from the map
         for pair in "${PYTHON_PACKAGES[@]}"; do
             map_module="${pair%%:*}"
             map_pip="${pair##*:}"
@@ -636,7 +366,7 @@ if [ ${#PYTHON_MISSING[@]} -gt 0 ]; then
                 info "Installing ${pip_name} ..."
                 pip install "${pip_name}" 2>&1 | tail -5 || true
 
-                if has_python_pkg "${map_module}"; then
+                if has_python_pkg "${ENV_NAME}" "${map_module}"; then
                     success "Verified: ${pip_name}"
                     installed
                 else
@@ -651,9 +381,135 @@ else
 fi
 
 # ============================================================================
-# STEP 7: Create project directory structure
+# STEP 3: Create 'dada2' environment (R + DADA2, pre-built)
 # ============================================================================
-step "7" "Checking project directory structure"
+step "3" "Checking Conda environment '${DADA2_ENV}' (R + DADA2)"
+
+if conda env list | grep -q "^${DADA2_ENV} "; then
+    skip "Conda environment '${DADA2_ENV}'"
+    info "To recreate: conda env remove -n ${DADA2_ENV} && ./setup_ubuntu.sh"
+else
+    clean_stale_env_dir "${DADA2_ENV}"
+    info "Creating '${DADA2_ENV}' environment with pre-built bioconda packages..."
+    info "(This uses pre-built binaries — no source compilation needed.)"
+    run_with_dots "conda: ${DADA2_ENV}" \
+        ${SOLVER} create -n "${DADA2_ENV}" --override-channels -c conda-forge -c bioconda \
+            bioconductor-dada2 \
+            r-optparse \
+            r-jsonlite \
+            -y
+    echo "${RWD_OUTPUT:-}" | tail -5 || true
+    if [[ ${RWD_EXIT} -eq 0 ]]; then
+        success "Environment '${DADA2_ENV}' created (pre-built, zero compilation)."
+        installed
+    else
+        warn "Failed to create '${DADA2_ENV}' environment:"
+        echo "${RWD_OUTPUT:-}" | tail -20 || true
+        failed "Environment: ${DADA2_ENV}"
+    fi
+fi
+
+# ============================================================================
+# STEP 4: Create 'analysis' environment (R + DA tools, pre-built)
+# ============================================================================
+step "4" "Checking Conda environment '${ANALYSIS_ENV}' (R + phyloseq/ANCOMBC/DESeq2/...)"
+
+if conda env list | grep -q "^${ANALYSIS_ENV} "; then
+    skip "Conda environment '${ANALYSIS_ENV}'"
+    info "To recreate: conda env remove -n ${ANALYSIS_ENV} && ./setup_ubuntu.sh"
+else
+    clean_stale_env_dir "${ANALYSIS_ENV}"
+    info "Creating '${ANALYSIS_ENV}' environment with pre-built bioconda packages..."
+    info "(This uses pre-built binaries — no source compilation needed.)"
+    run_with_dots "conda: ${ANALYSIS_ENV}" \
+        ${SOLVER} create -n "${ANALYSIS_ENV}" --override-channels -c conda-forge -c bioconda \
+            bioconductor-phyloseq \
+            bioconductor-ancombc \
+            bioconductor-deseq2 \
+            bioconductor-aldex2 \
+            bioconductor-maaslin2 \
+            r-optparse \
+            r-jsonlite \
+            -y
+    echo "${RWD_OUTPUT:-}" | tail -5 || true
+    if [[ ${RWD_EXIT} -eq 0 ]]; then
+        success "Environment '${ANALYSIS_ENV}' created (pre-built, zero compilation)."
+        installed
+    else
+        warn "Failed to create '${ANALYSIS_ENV}' environment:"
+        echo "${RWD_OUTPUT:-}" | tail -20 || true
+        failed "Environment: ${ANALYSIS_ENV}"
+    fi
+fi
+
+# --- Install vegan from CRAN (conda r-vegan has version conflicts with bioconda R) ---
+if has_r_pkg "${ANALYSIS_ENV}" "vegan"; then
+    skip "R package: vegan"
+else
+    info "Installing vegan from CRAN into '${ANALYSIS_ENV}' env..."
+    run_with_dots "R: vegan" \
+        conda run -n "${ANALYSIS_ENV}" --no-capture-output \
+        Rscript -e "install.packages('vegan', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock', Ncpus=4)"
+    if has_r_pkg "${ANALYSIS_ENV}" "vegan"; then
+        success "R package installed: vegan"
+        installed
+    else
+        echo "${RWD_OUTPUT:-}" | tail -20 || true
+        failed "R package: vegan"
+    fi
+fi
+
+# --- Install LinDA from GitHub (only R package not on bioconda) ---
+if has_r_pkg "${ANALYSIS_ENV}" "LinDA"; then
+    skip "R package: LinDA"
+else
+    info "Installing LinDA from GitHub into '${ANALYSIS_ENV}' env..."
+    run_with_dots "GitHub: LinDA" \
+        conda run -n "${ANALYSIS_ENV}" --no-capture-output \
+        Rscript -e "
+        if (!requireNamespace('remotes', quietly=TRUE))
+            install.packages('remotes', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
+        if (!requireNamespace('modeest', quietly=TRUE))
+            install.packages('modeest', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
+        remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock')
+    "
+    echo "${RWD_OUTPUT:-}" | tail -10 || true
+
+    if has_r_pkg "${ANALYSIS_ENV}" "LinDA"; then
+        success "LinDA installed from GitHub."
+        installed
+    else
+        failed "R package: LinDA"
+    fi
+fi
+
+# ============================================================================
+# STEP 5: Install PICRUSt2
+# ============================================================================
+step "5" "Checking PICRUSt2 (separate environment)"
+
+if conda env list | grep -q "^${PICRUST2_ENV} "; then
+    skip "PICRUSt2 (${PICRUST2_ENV} environment)"
+else
+    info "Creating separate '${PICRUST2_ENV}' environment..."
+    info "PICRUSt2 requires its own environment to avoid dependency conflicts."
+
+    run_with_dots "conda: picrust2" \
+        ${SOLVER} create -n "${PICRUST2_ENV}" --override-channels -c conda-forge -c bioconda picrust2 -y
+    echo "${RWD_OUTPUT:-}" | tail -5 || true
+    if [[ ${RWD_EXIT} -eq 0 ]]; then
+        success "PICRUSt2 installed in separate '${PICRUST2_ENV}' environment."
+        installed
+    else
+        warn "PICRUSt2 installation failed. You can install it manually later."
+        warn "The pipeline will skip PICRUSt2 steps if it's not available."
+    fi
+fi
+
+# ============================================================================
+# STEP 6: Create project directory structure
+# ============================================================================
+step "6" "Checking project directory structure"
 
 DIRS_CREATED=0
 
@@ -705,9 +561,9 @@ else
 fi
 
 # ============================================================================
-# STEP 8: Download SILVA 138.1 reference databases
+# STEP 7: Download SILVA 138.1 reference databases
 # ============================================================================
-step "8" "Checking SILVA 138.1 Reference Database"
+step "7" "Checking SILVA 138.1 Reference Database"
 
 SILVA_TRAIN="${SILVA_DIR}/silva_nr99_v138.1_train_set.fa.gz"
 SILVA_SPECIES="${SILVA_DIR}/silva_species_assignment_v138.1.fa.gz"
@@ -833,9 +689,9 @@ if [[ "${SILVA_NEEDED}" == "true" ]]; then
 fi
 
 # ============================================================================
-# STEP 9: Create configuration file
+# STEP 8: Create configuration file
 # ============================================================================
-step "9" "Checking configuration file"
+step "8" "Checking configuration file"
 
 CONFIG_FILE="${PROJECT_DIR}/app/config.py"
 
@@ -843,19 +699,12 @@ if [[ -f "${CONFIG_FILE}" ]]; then
     skip "Configuration file (app/config.py)"
     info "To regenerate, delete app/config.py and re-run setup."
 else
-    # Detect PICRUSt2 location
-    if [[ "${PICRUST2_SEPARATE}" == "true" ]]; then
-        PICRUST2_ENV="picrust2"
-    else
-        PICRUST2_ENV="${ENV_NAME}"
-    fi
-
     # Detect conda base path
     CONDA_BASE_PATH=$(conda info --base 2>/dev/null || echo "$HOME/miniforge3")
 
     cat > "${CONFIG_FILE}" << PYEOF
 """
-MicrobiomeDash Configuration
+16S Analyzer Configuration
 Auto-generated by setup_ubuntu.sh — edit as needed.
 """
 import os
@@ -881,8 +730,27 @@ SILVA_SPECIES = REFERENCE_DIR / "silva_species_assignment_v138.1.fa.gz"
 
 # --- Conda ---
 CONDA_ENV_NAME = "${ENV_NAME}"
+DADA2_ENV_NAME = "${DADA2_ENV}"
+ANALYSIS_ENV_NAME = "${ANALYSIS_ENV}"
 PICRUST2_ENV_NAME = "${PICRUST2_ENV}"
 CONDA_BASE = Path(os.environ.get("CONDA_BASE", "${CONDA_BASE_PATH}"))
+
+# Map R script filenames to the conda env that has their dependencies.
+_R_SCRIPT_ENV_MAP = {
+    "run_dada2.R": DADA2_ENV_NAME,
+    "run_taxonomy.R": DADA2_ENV_NAME,
+    "run_ancombc.R": ANALYSIS_ENV_NAME,
+    "run_deseq2.R": ANALYSIS_ENV_NAME,
+    "run_aldex2.R": ANALYSIS_ENV_NAME,
+    "run_linda.R": ANALYSIS_ENV_NAME,
+    "run_maaslin2.R": ANALYSIS_ENV_NAME,
+    "run_nmds.R": ANALYSIS_ENV_NAME,
+}
+
+
+def r_script_env(script_name: str) -> str:
+    """Return the conda env name for a given R script filename."""
+    return _R_SCRIPT_ENV_MAP.get(script_name, CONDA_ENV_NAME)
 
 
 def conda_cmd(args: list[str], env_name: str | None = None) -> list[str]:
@@ -911,24 +779,25 @@ PYEOF
 fi
 
 # ============================================================================
-# STEP 10: Verify installation
+# STEP 9: Verify installation
 # ============================================================================
-step "10" "Verifying installation"
+step "9" "Verifying installation"
 
 echo ""
-info "Checking tools..."
+info "Checking '${ENV_NAME}' environment (Python + CLI tools)..."
 
-# CLI tools verification
+# Get env prefix for binary checks
+MICROBIOME_PREFIX=$(conda info --envs | grep "^${ENV_NAME} " | awk '{print $NF}')
+
 for tool_info in \
     "Python:python --version" \
-    "R:R --version 2>&1 | head -1" \
     "FastQC:fastqc --version" \
     "Cutadapt:cutadapt --version" \
     "MAFFT:mafft --version 2>&1 | head -1"; do
-    
+
     tool="${tool_info%%:*}"
     check_cmd="${tool_info#*:}"
-    
+
     if eval "${check_cmd}" &> /dev/null; then
         VERSION=$(eval "${check_cmd}" 2>&1 | head -1)
         echo -e "  ${GREEN}✓${NC} ${tool}: ${VERSION}"
@@ -937,24 +806,7 @@ for tool_info in \
     fi
 done
 
-# PICRUSt2
-if has_cmd picrust2_pipeline.py; then
-    echo -e "  ${GREEN}✓${NC} PICRUSt2: available (main env)"
-elif conda env list | grep -q "^picrust2 "; then
-    echo -e "  ${GREEN}✓${NC} PICRUSt2: available (separate env)"
-else
-    echo -e "  ${YELLOW}△${NC} PICRUSt2: not found (pathway analysis will be unavailable)"
-fi
-
-# SILVA
-if [[ -f "${SILVA_TRAIN}" && -f "${SILVA_SPECIES}" ]]; then
-    echo -e "  ${GREEN}✓${NC} SILVA 138.1: downloaded"
-else
-    echo -e "  ${YELLOW}△${NC} SILVA 138.1: not downloaded (see README)"
-fi
-
 # Python packages
-echo ""
 info "Checking Python packages..."
 python -c "
 packages = {
@@ -983,19 +835,50 @@ for module, name in packages.items():
         print(f'  \033[0;31m✗\033[0m {name} — not installed')
 "
 
-# R packages
+# DADA2 env
 echo ""
-info "Checking R packages..."
-Rscript -e '
-    packages <- c("dada2", "ANCOMBC", "ALDEx2", "DESeq2", "Maaslin2", "LinDA", "vegan", "phyloseq", "optparse", "jsonlite")
-    for (pkg in packages) {
-        if (requireNamespace(pkg, quietly = TRUE)) {
-            message("  \033[0;32m✓\033[0m ", pkg)
-        } else {
-            message("  \033[0;31m✗\033[0m ", pkg, " — not installed")
-        }
-    }
-'
+info "Checking '${DADA2_ENV}' environment (R + DADA2)..."
+if conda env list | grep -q "^${DADA2_ENV} "; then
+    for r_pkg in dada2 optparse jsonlite; do
+        if has_r_pkg "${DADA2_ENV}" "${r_pkg}"; then
+            echo -e "  ${GREEN}✓${NC} ${r_pkg}"
+        else
+            echo -e "  ${RED}✗${NC} ${r_pkg} — not installed"
+        fi
+    done
+else
+    echo -e "  ${RED}✗${NC} Environment '${DADA2_ENV}' not found"
+fi
+
+# Analysis env
+echo ""
+info "Checking '${ANALYSIS_ENV}' environment (R + DA tools)..."
+if conda env list | grep -q "^${ANALYSIS_ENV} "; then
+    for r_pkg in phyloseq ANCOMBC DESeq2 ALDEx2 Maaslin2 LinDA vegan optparse jsonlite; do
+        if has_r_pkg "${ANALYSIS_ENV}" "${r_pkg}"; then
+            echo -e "  ${GREEN}✓${NC} ${r_pkg}"
+        else
+            echo -e "  ${RED}✗${NC} ${r_pkg} — not installed"
+        fi
+    done
+else
+    echo -e "  ${RED}✗${NC} Environment '${ANALYSIS_ENV}' not found"
+fi
+
+# PICRUSt2
+echo ""
+if conda env list | grep -q "^${PICRUST2_ENV} "; then
+    echo -e "  ${GREEN}✓${NC} PICRUSt2: available (${PICRUST2_ENV} env)"
+else
+    echo -e "  ${YELLOW}△${NC} PICRUSt2: not found (pathway analysis will be unavailable)"
+fi
+
+# SILVA
+if [[ -f "${SILVA_TRAIN}" && -f "${SILVA_SPECIES}" ]]; then
+    echo -e "  ${GREEN}✓${NC} SILVA 138.1: downloaded"
+else
+    echo -e "  ${YELLOW}△${NC} SILVA 138.1: not downloaded (see README)"
+fi
 
 # ============================================================================
 # Summary

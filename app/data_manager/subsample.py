@@ -13,7 +13,7 @@ def _biom_to_bytes(table: Table) -> bytes:
 
     buf = io.BytesIO()
     with h5py.File(buf, "w") as f:
-        table.to_hdf5(f, generated_by="MicrobiomeDash-Subsample")
+        table.to_hdf5(f, generated_by="16S-Analyzer-Subsample")
     return buf.getvalue()
 
 

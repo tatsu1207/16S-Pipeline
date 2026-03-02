@@ -37,7 +37,7 @@ def _cache_set(key: str, value):
 
 def _kegg_get(url: str) -> str:
     """Fetch a KEGG REST URL and return the response text."""
-    req = urllib.request.Request(url, headers={"User-Agent": "MicrobiomeDash/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "16S-Analyzer/1.0"})
     with urllib.request.urlopen(req, timeout=15) as resp:
         return resp.read().decode("utf-8")
 

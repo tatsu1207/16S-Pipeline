@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from app.config import R_SCRIPTS_DIR, conda_cmd
+from app.config import DADA2_ENV_NAME, R_SCRIPTS_DIR, conda_cmd
 
 
 def run_dada2(
@@ -46,7 +46,7 @@ def run_dada2(
         "--trunc_len_r", str(trunc_len_r),
         "--min_overlap", str(min_overlap),
         "--threads", str(threads),
-    ])
+    ], env_name=DADA2_ENV_NAME)
 
     logger.info(f"Running DADA2 ({mode} mode)...")
 

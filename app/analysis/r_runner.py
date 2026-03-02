@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from app.config import R_SCRIPTS_DIR, conda_cmd
+from app.config import R_SCRIPTS_DIR, conda_cmd, r_script_env
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ def run_r_script(script_name: str, args_dict: dict, on_line=None) -> dict:
     for key, value in args_dict.items():
         cmd_args.extend([f"--{key}", str(value)])
 
-    full_cmd = conda_cmd(cmd_args)
+    full_cmd = conda_cmd(cmd_args, env_name=r_script_env(script_name))
     logger.info(f"Running R: {' '.join(full_cmd)}")
 
     if on_line is not None:

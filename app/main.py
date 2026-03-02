@@ -37,7 +37,7 @@ import app.dashboard.pages.picrust2_page  # noqa: F401
 # ── FastAPI application ───────────────────────────────────────────────────────
 
 api = FastAPI(
-    title="MicrobiomeDash API",
+    title="16S Analyzer API",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
 )

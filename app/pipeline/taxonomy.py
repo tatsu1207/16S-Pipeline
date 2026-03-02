@@ -7,7 +7,7 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from app.config import R_SCRIPTS_DIR, SILVA_SPECIES, SILVA_TRAIN_SET, conda_cmd
+from app.config import DADA2_ENV_NAME, R_SCRIPTS_DIR, SILVA_SPECIES, SILVA_TRAIN_SET, conda_cmd
 
 
 def run_taxonomy(
@@ -31,7 +31,7 @@ def run_taxonomy(
         "--silva_train", str(SILVA_TRAIN_SET),
         "--silva_species", str(SILVA_SPECIES),
         "--threads", str(threads),
-    ])
+    ], env_name=DADA2_ENV_NAME)
 
     logger.info("Running taxonomy assignment (SILVA 138.1)...")
 

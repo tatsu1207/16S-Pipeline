@@ -148,7 +148,7 @@ def mothur_to_biom(fasta_path: str, count_table_path: str) -> bytes:
     tmp_path = Path(tmp.name)
     try:
         with h5py.File(tmp_path, "w") as f:
-            table.to_hdf5(f, generated_by="MicrobiomeDash")
+            table.to_hdf5(f, generated_by="16S-Analyzer")
         return tmp_path.read_bytes()
     finally:
         tmp_path.unlink(missing_ok=True)

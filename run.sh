@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # ============================================================================
-# MicrobiomeDash — Run Script
+# 16S Analyzer — Run Script
 # ============================================================================
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_NAME="microbiome"
+ENV_NAME="microbiome_16S"
 
 # Ensure conda is available
 # Try common conda installation paths if conda is not already on PATH
@@ -49,7 +49,7 @@ fi
 
 LOGFILE="${SCRIPT_DIR}/run.log"
 
-echo "Starting MicrobiomeDash in background..."
+echo "Starting 16S Analyzer in background..."
 echo "   Open http://localhost:${PORT} in your browser"
 echo "   Logs: ${LOGFILE}"
 echo "   Stop: kill \$(cat ${SCRIPT_DIR}/run.pid)"

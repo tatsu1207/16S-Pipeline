@@ -65,7 +65,7 @@ def tsv_to_biom(
 
     biom_path = output_dir / "asv_table.biom"
     with h5py.File(biom_path, "w") as f:
-        table.to_hdf5(f, generated_by="MicrobiomeDash-DADA2")
+        table.to_hdf5(f, generated_by="16S-Analyzer-DADA2")
 
     tax_msg = " (with taxonomy)" if tax_lookup else ""
     logger.info(

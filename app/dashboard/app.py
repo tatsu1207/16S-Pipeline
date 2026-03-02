@@ -11,7 +11,7 @@ app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.DARKLY],
     suppress_callback_exceptions=True,
-    title="MicrobiomeDash",
+    title="16S Analyzer",
     update_title="Loading...",
 )
 

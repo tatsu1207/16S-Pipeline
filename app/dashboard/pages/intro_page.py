@@ -88,7 +88,7 @@ layout = dbc.Container([
 
     # Header
     html.Div([
-        html.H2("MicrobiomeDash", className="mb-2"),
+        html.H2("16S Analyzer", className="mb-2"),
         html.P(
             "An end-to-end 16S rRNA amplicon analysis platform — from raw FASTQ "
             "files to publication-ready results.",
@@ -101,7 +101,7 @@ layout = dbc.Container([
     # ── About ────────────────────────────────────────────────────────────────
     html.H4("About", className="mt-4 mb-3"),
     html.P(
-        "MicrobiomeDash integrates quality control, amplicon sequence variant (ASV) "
+        "16S Analyzer integrates quality control, amplicon sequence variant (ASV) "
         "inference, taxonomic classification, data curation, and statistical "
         "analysis into a single browser-based interface. The platform is built "
         "around three core tools:"
