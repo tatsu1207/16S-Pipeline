@@ -146,14 +146,20 @@ tryCatch({
   # ── Step 3: Learn Error Rates (PacBio error model) ─────────────────────
 
   if (opt$platform == "pacbio") {
-    log_msg("Learning error rates (PacBioErrfun, BAND_SIZE=", opt$band_size, ")...\n", sep="")
+    # PacBio HiFi reads have >Q30 accuracy — cap nbases to speed up error
+    # learning since the error profile is already very low and uniform.
+    lr_nbases <- 5e7
+    log_msg("Learning error rates (PacBioErrfun, BAND_SIZE=", opt$band_size,
+            ", nbases=", formatC(lr_nbases, format="e", digits=0), ")...\n", sep="")
     errF <- learnErrors(filtFs, errorEstimationFunction=PacBioErrfun,
-                         BAND_SIZE=opt$band_size,
+                         BAND_SIZE=opt$band_size, nbases=lr_nbases,
                          multithread=use_mt, randomize=TRUE)
   } else {
-    log_msg("Learning error rates (loessErrfun, BAND_SIZE=", opt$band_size, ")...\n", sep="")
+    lr_nbases <- 1e8
+    log_msg("Learning error rates (loessErrfun, BAND_SIZE=", opt$band_size,
+            ", nbases=", formatC(lr_nbases, format="e", digits=0), ")...\n", sep="")
     errF <- learnErrors(filtFs, errorEstimationFunction=loessErrfun,
-                         BAND_SIZE=opt$band_size,
+                         BAND_SIZE=opt$band_size, nbases=lr_nbases,
                          multithread=use_mt, randomize=TRUE)
   }
 

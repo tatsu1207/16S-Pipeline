@@ -189,6 +189,7 @@ def _add_methods_page(pdf: FPDF, dataset_id: int):
     pdf.ln(6)
 
     text = generate_methods_text(dataset_id)
+    text = _sanitize_text(text)
     pdf.set_font("Helvetica", "", 10)
     pdf.multi_cell(w=0, h=5, text=text)
 
@@ -227,7 +228,7 @@ def _add_alpha_section(pdf: FPDF, count_df, meta_df, sid_col, group_col):
 
     for ax, metric in zip(axes.flat, metrics):
         data_by_group = [alpha_df[alpha_df["group"] == g][metric].values for g in groups]
-        bp = ax.boxplot(data_by_group, labels=groups, patch_artist=True, widths=0.6)
+        bp = ax.boxplot(data_by_group, tick_labels=groups, patch_artist=True, widths=0.6)
         for patch, color in zip(bp["boxes"], colors):
             patch.set_facecolor(color)
             patch.set_alpha(0.7)
@@ -303,10 +304,17 @@ def _add_beta_section(pdf: FPDF, count_df, meta_df, sid_col, group_col):
     fig, ax = plt.subplots(figsize=(9, 7))
     for grp in groups:
         mask = coords["group"] == grp
+        grp_coords = coords.loc[mask]
         ax.scatter(
-            coords.loc[mask, "PC1"], coords.loc[mask, "PC2"],
+            grp_coords["PC1"], grp_coords["PC2"],
             label=grp, color=color_map[grp], s=50, alpha=0.8, edgecolors="white",
         )
+        # Draw 95% confidence ellipse if group has >= 3 points
+        if len(grp_coords) >= 3:
+            _draw_confidence_ellipse(
+                ax, grp_coords["PC1"].values, grp_coords["PC2"].values,
+                color=color_map[grp], confidence=0.95,
+            )
 
     pc1_pct = prop_exp.get("PC1", 0) * 100
     pc2_pct = prop_exp.get("PC2", 0) * 100
@@ -345,64 +353,67 @@ def _add_beta_section(pdf: FPDF, count_df, meta_df, sid_col, group_col):
 
 
 def _add_taxonomy_section(pdf: FPDF, biom_path, meta_df, sid_col, group_col):
-    """Stacked bar plot at Phylum level."""
+    """Stacked bar plots at Phylum, Family, and Genus levels."""
     from app.analysis.taxonomy import aggregate_taxonomy
 
-    try:
-        tax_df = aggregate_taxonomy(biom_path, "Phylum", top_n=15)
-    except Exception as e:
-        logger.warning(f"Taxonomy aggregation failed: {e}")
-        return
+    ranks = [("Phylum", 15), ("Family", 20), ("Genus", 20)]
 
-    if tax_df.empty:
-        return
+    for rank, top_n in ranks:
+        try:
+            tax_df = aggregate_taxonomy(biom_path, rank, top_n=top_n)
+        except Exception as e:
+            logger.warning(f"Taxonomy aggregation at {rank} failed: {e}")
+            continue
 
-    # Reorder by group if metadata available
-    sample_order = list(tax_df.columns)
-    group_labels = None
-    if meta_df is not None and sid_col and group_col and group_col in meta_df.columns:
-        meta_map = meta_df.set_index(meta_df[sid_col].astype(str))[group_col]
-        mapped = {s: meta_map.get(s, "") for s in sample_order}
-        sample_order = sorted(sample_order, key=lambda s: (mapped.get(s, ""), s))
-        group_labels = [mapped.get(s, "") for s in sample_order]
+        if tax_df.empty:
+            continue
 
-    tax_df = tax_df[sample_order]
+        # Reorder by group if metadata available
+        sample_order = list(tax_df.columns)
+        group_labels = None
+        if meta_df is not None and sid_col and group_col and group_col in meta_df.columns:
+            meta_map = meta_df.set_index(meta_df[sid_col].astype(str))[group_col]
+            mapped = {s: meta_map.get(s, "") for s in sample_order}
+            sample_order = sorted(sample_order, key=lambda s: (mapped.get(s, ""), s))
+            group_labels = [mapped.get(s, "") for s in sample_order]
 
-    # Stacked bar chart
-    n_samples = len(sample_order)
-    fig_width = max(10, n_samples * 0.45)
-    fig, ax = plt.subplots(figsize=(min(fig_width, 22), 7))
+        tax_df = tax_df[sample_order]
 
-    cmap = plt.cm.get_cmap("tab20", len(tax_df))
-    bottom = np.zeros(n_samples)
-    x = np.arange(n_samples)
+        # Stacked bar chart
+        n_samples = len(sample_order)
+        fig_width = max(10, n_samples * 0.45)
+        fig, ax = plt.subplots(figsize=(min(fig_width, 22), 7))
 
-    for i, (taxon, row) in enumerate(tax_df.iterrows()):
-        vals = row.values
-        ax.bar(x, vals, bottom=bottom, label=taxon, color=cmap(i), width=0.85)
-        bottom += vals
+        cmap = plt.colormaps.get_cmap("tab20").resampled(max(len(tax_df), 1))
+        bottom = np.zeros(n_samples)
+        x = np.arange(n_samples)
 
-    ax.set_xticks(x)
-    x_labels = sample_order
-    if group_labels:
-        x_labels = [f"{s}\n({g})" for s, g in zip(sample_order, group_labels)]
-    ax.set_xticklabels(x_labels, rotation=45, ha="right", fontsize=7)
-    ax.set_ylabel("Relative Abundance", fontsize=11)
-    ax.set_title("Taxonomy Composition (Phylum Level)", fontsize=14, fontweight="bold")
-    ax.set_ylim(0, 1)
-    ax.legend(
-        bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=7,
-        ncol=1, frameon=False,
-    )
-    fig.tight_layout()
+        for i, (taxon, row) in enumerate(tax_df.iterrows()):
+            vals = row.values
+            ax.bar(x, vals, bottom=bottom, label=taxon, color=cmap(i), width=0.85)
+            bottom += vals
 
-    chart_path = _save_temp_chart(fig)
-    pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(text="Taxonomy Composition", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(4)
-    pdf.image(chart_path, w=270)
-    Path(chart_path).unlink(missing_ok=True)
+        ax.set_xticks(x)
+        x_labels = sample_order
+        if group_labels:
+            x_labels = [f"{s}\n({g})" for s, g in zip(sample_order, group_labels)]
+        ax.set_xticklabels(x_labels, rotation=45, ha="right", fontsize=7)
+        ax.set_ylabel("Relative Abundance", fontsize=11)
+        ax.set_title(f"Taxonomy Composition ({rank} Level)", fontsize=14, fontweight="bold")
+        ax.set_ylim(0, 1)
+        ax.legend(
+            bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=7,
+            ncol=1, frameon=False,
+        )
+        fig.tight_layout()
+
+        chart_path = _save_temp_chart(fig)
+        pdf.add_page()
+        pdf.set_font("Helvetica", "B", 16)
+        pdf.cell(text=f"Taxonomy Composition ({rank})", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(4)
+        pdf.image(chart_path, w=270)
+        Path(chart_path).unlink(missing_ok=True)
 
 
 def _add_reads_section(pdf: FPDF, sample_data: list[dict]):
@@ -451,6 +462,36 @@ def _add_reads_section(pdf: FPDF, sample_data: list[dict]):
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _draw_confidence_ellipse(ax, x, y, color, confidence=0.95):
+    """Draw a confidence ellipse for a set of 2D points."""
+    from matplotlib.patches import Ellipse
+    from scipy.stats import chi2
+
+    mean_x, mean_y = np.mean(x), np.mean(y)
+    cov = np.cov(x, y)
+
+    # Eigenvalues and eigenvectors for ellipse orientation
+    eigenvalues, eigenvectors = np.linalg.eigh(cov)
+    order = eigenvalues.argsort()[::-1]
+    eigenvalues = eigenvalues[order]
+    eigenvectors = eigenvectors[:, order]
+
+    # Avoid degenerate ellipses
+    if eigenvalues[0] <= 0 or eigenvalues[1] <= 0:
+        return
+
+    angle = np.degrees(np.arctan2(eigenvectors[1, 0], eigenvectors[0, 0]))
+    chi2_val = chi2.ppf(confidence, df=2)
+    width = 2 * np.sqrt(eigenvalues[0] * chi2_val)
+    height = 2 * np.sqrt(eigenvalues[1] * chi2_val)
+
+    ellipse = Ellipse(
+        xy=(mean_x, mean_y), width=width, height=height, angle=angle,
+        facecolor=color, alpha=0.15, edgecolor=color, linewidth=1.5,
+    )
+    ax.add_patch(ellipse)
+
 
 def _save_temp_chart(fig) -> str:
     """Save a matplotlib figure to a temp PNG and close it."""
@@ -513,6 +554,25 @@ def _get_group_colors(n: int) -> list[str]:
         return palette[:n]
     cmap = plt.cm.get_cmap("tab20", n)
     return [matplotlib.colors.rgb2hex(cmap(i)) for i in range(n)]
+
+
+def _sanitize_text(text: str) -> str:
+    """Replace Unicode characters unsupported by Helvetica with ASCII equivalents."""
+    replacements = {
+        "\u2013": "-",   # en-dash
+        "\u2014": "--",  # em-dash
+        "\u2018": "'",   # left single quote
+        "\u2019": "'",   # right single quote
+        "\u201c": '"',   # left double quote
+        "\u201d": '"',   # right double quote
+        "\u2026": "...", # ellipsis
+        "\u00b1": "+/-", # plus-minus
+        "\u2264": "<=",  # less-than-or-equal
+        "\u2265": ">=",  # greater-than-or-equal
+    }
+    for char, repl in replacements.items():
+        text = text.replace(char, repl)
+    return text
 
 
 def _format_pvalue(p: float) -> str:

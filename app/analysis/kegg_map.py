@@ -181,9 +181,13 @@ def cross_reference_ids(
             normalized = idx.replace("EC:", "")
             data_id_map[normalized] = idx
     else:
-        # KO format: "K00018" — direct match
-        data_ids = set(counts_df.index)
-        data_id_map = {idx: idx for idx in counts_df.index}
+        # KO format: PICRUSt2 uses "ko:K00018", KEGG uses "K00018"
+        data_ids = set()
+        data_id_map = {}
+        for idx in counts_df.index:
+            normalized = idx.replace("ko:", "") if idx.startswith("ko:") else idx
+            data_ids.add(normalized)
+            data_id_map[normalized] = idx
 
     pathway_set = set(pathway_ids)
     detected = sorted(pathway_set & data_ids)

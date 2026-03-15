@@ -225,14 +225,14 @@ def detect_variable_region(
             "details": "Could not read sequences from file.",
         }
 
-    # Count primer matches for each region
-    region_scores = defaultdict(int)
+    # Count forward primer matches for each region
+    region_fwd_scores = defaultdict(int)
     for seq in sequences:
         for region_name, primers in PRIMERS.items():
             if _primer_matches(seq, primers["forward"]):
-                region_scores[region_name] += 1
+                region_fwd_scores[region_name] += 1
 
-    if not region_scores:
+    if not region_fwd_scores:
         # Fallback: align reads to E. coli 16S with bbmap
         bbmap_result = _detect_region_bbmap(fastq_path)
         if bbmap_result["region"]:
@@ -245,9 +245,45 @@ def detect_variable_region(
             "details": "No primer matches found and bbmap alignment inconclusive.",
         }
 
+    # If multiple regions share the same forward primer (e.g. V4 and V4-V5
+    # both use 515F), disambiguate using the R2 file's reverse primer.
+    best_fwd_count = max(region_fwd_scores.values())
+    tied = [r for r, c in region_fwd_scores.items() if c == best_fwd_count]
+
+    if len(tied) > 1:
+        # Try to find the R2 file for reverse primer disambiguation
+        r2_path = _find_r2_file(fastq_path)
+        if r2_path:
+            r2_sequences = _read_fastq_sequences(r2_path, n_reads)
+            if r2_sequences:
+                region_rev_scores = defaultdict(int)
+                for seq in r2_sequences:
+                    for region_name in tied:
+                        rev_primer = PRIMERS[region_name]["reverse"]
+                        if _primer_matches(seq, rev_primer):
+                            region_rev_scores[region_name] += 1
+                if region_rev_scores:
+                    best_region = max(region_rev_scores, key=region_rev_scores.get)
+                    rev_count = region_rev_scores[best_region]
+                    return {
+                        "region": best_region,
+                        "confidence": round(best_fwd_count / len(sequences), 2),
+                        "method": "primer_match",
+                        "details": (
+                            f"{best_fwd_count}/{len(sequences)} reads matched forward primer; "
+                            f"R2 reverse primer resolved tie: {best_region} "
+                            f"({rev_count}/{len(r2_sequences)} R2 reads)."
+                        ),
+                    }
+
+        # Still tied — fall back to bbmap alignment for length-based resolution
+        bbmap_result = _detect_region_bbmap(fastq_path)
+        if bbmap_result["region"] and bbmap_result["region"] in tied:
+            return bbmap_result
+
     # Pick the region with the most matches
-    best_region = max(region_scores, key=region_scores.get)
-    best_count = region_scores[best_region]
+    best_region = max(region_fwd_scores, key=region_fwd_scores.get)
+    best_count = region_fwd_scores[best_region]
     confidence = best_count / len(sequences)
 
     return {
@@ -256,6 +292,20 @@ def detect_variable_region(
         "method": "primer_match",
         "details": f"{best_count}/{len(sequences)} reads matched {best_region} forward primer.",
     }
+
+
+def _find_r2_file(r1_path: Path) -> Path | None:
+    """Given an R1 FASTQ path, find the corresponding R2 file."""
+    name = r1_path.name
+    for pattern, replacement in [
+        ("_R1_", "_R2_"), ("_R1.", "_R2."), ("_1.", "_2."),
+    ]:
+        if pattern in name:
+            r2_name = name.replace(pattern, replacement, 1)
+            r2_path = r1_path.parent / r2_name
+            if r2_path.exists():
+                return r2_path
+    return None
 
 
 # ── BBMap-based variable region detection ─────────────────────────────────────

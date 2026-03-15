@@ -1,8 +1,10 @@
-# 16S Analyzer -- 16S rRNA Microbiome Analysis Dashboard
+# 16S Pipeline -- 16S rRNA Microbiome Analysis Platform
 
 A web-based tool for processing, managing, and visualizing 16S rRNA amplicon sequencing data. Built with Plotly Dash + FastAPI + SQLite.
 
-**Supported input**: Illumina paired-end or single-end amplicon FASTQ files targeting specific 16S variable regions (V1-V2, V3-V4, V4, V4-V5, V5-V6). Full-length 16S long reads (PacBio HiFi, Nanopore) are also supported — auto-detected at upload, processed with DADA2 using platform-appropriate error models.
+**Supported platforms**: Linux (Ubuntu), Windows (WSL2), macOS (Apple Silicon)
+
+**Supported input**: Illumina paired-end or single-end amplicon FASTQ files targeting specific 16S variable regions (V1-V2, V3-V4, V4, V4-V5, V5-V6). Full-length 16S long reads (PacBio HiFi, Nanopore) are also supported -- auto-detected at upload, processed with DADA2 using platform-appropriate error models.
 
 **Three integrated tools:**
 
@@ -20,6 +22,10 @@ A web-based tool for processing, managing, and visualizing 16S rRNA amplicon seq
 - **Differential abundance** -- 5 tools: ALDEx2, DESeq2, ANCOM-BC2, LinDA, MaAsLin2; all-pairwise mode; volcano plots
 - **Pathway analysis** -- PICRUSt2 output analysis with multi-tool DA, KO-to-KEGG aggregation, errorbar/heatmap/PCA plots (ggpicrust2-inspired)
 - **KEGG Map** -- Targeted pathway inspection with DA-colored KEGG maps
+- **Core Microbiome** -- Identify shared taxa across groups at configurable prevalence thresholds
+- **Venn Diagrams** -- Visualize shared/unique taxa between groups
+- **SRA Download** -- Fetch public datasets from NCBI SRA by accession
+- **Analysis Report** -- Generate comprehensive PDF reports with all analysis results
 
 ---
 
@@ -29,7 +35,8 @@ A web-based tool for processing, managing, and visualizing 16S rRNA amplicon seq
 - [Installation](#installation)
 - [Running the App](#running-the-app)
 - [Project Structure](#project-structure)
-- [Windows WSL Setup](#windows-wsl-setup)
+- [Windows WSL2 Setup](#windows-wsl2-setup)
+- [macOS Setup](#macos-setup)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 
@@ -37,18 +44,10 @@ A web-based tool for processing, managing, and visualizing 16S rRNA amplicon seq
 
 ## Prerequisites
 
-- **Operating System**: Ubuntu/Debian Linux (native or WSL2 on Windows)
-- **Conda**: Miniconda or Miniforge installed ([install guide](https://docs.conda.io/en/latest/miniconda.html))
+- **Operating System**: Ubuntu/Debian Linux, Windows (via WSL2), or macOS (Apple Silicon)
+- **Conda**: Miniforge recommended ([install guide](https://github.com/conda-forge/miniforge))
 - **RAM**: 8 GB minimum, 16 GB recommended (16 GB required for PICRUSt2)
 - **Disk Space**: ~10 GB for software + reference databases
-- **System libraries** (install if missing):
-
-```bash
-sudo apt install -y build-essential curl git wget libxml2-dev \
-    libcurl4-openssl-dev libssl-dev libfontconfig1-dev \
-    libharfbuzz-dev libfribidi-dev libfreetype6-dev \
-    libtiff5-dev libjpeg-dev libpng-dev
-```
 
 ---
 
@@ -61,15 +60,16 @@ git clone https://github.com/tatsu1207/16S-Pipeline.git
 cd 16S-Pipeline
 ```
 
-### Step 2: Run the setup script
+### Step 2: Run the setup script for your platform
 
-The setup script uses a **4-environment architecture** to avoid dependency conflicts:
+The setup script uses a **5-environment architecture** to avoid dependency conflicts:
 
 | Environment | Contents |
 |-------------|----------|
-| `microbiome_16S` | Python 3.11 + CLI tools (FastQC, Cutadapt, MAFFT, FastTree, vsearch). The web app runs here. |
+| `microbiome_16S` | Python 3.11 + CLI tools (FastQC, Cutadapt, MAFFT, FastTree, vsearch, sra-tools). The web app runs here. |
 | `dada2_16S` | R 4.3 + DADA2 (pre-built from bioconda, zero compilation) |
-| `analysis_16S` | R 4.3 + ALDEx2, DESeq2, ANCOM-BC2, MaAsLin2, LinDA, vegan |
+| `analysis_16S` | R 4.4 + ALDEx2, DESeq2, ANCOM-BC2 |
+| `maaslin2_16S` | R 4.3 + MaAsLin2, LinDA, vegan (separate env due to R version conflicts) |
 | `picrust2_16S` | PICRUSt2 functional prediction |
 
 The script also:
@@ -79,8 +79,17 @@ The script also:
 - Skips any component that is already installed (safe to re-run)
 
 ```bash
+# Linux (Ubuntu/Debian)
 chmod +x setup_ubuntu.sh
 ./setup_ubuntu.sh
+
+# Windows (WSL2) -- see "Windows WSL2 Setup" section below first
+chmod +x setup_wsl2.sh
+./setup_wsl2.sh
+
+# macOS (Apple Silicon)
+chmod +x setup_mac.sh
+./setup_mac.sh
 ```
 
 > Expected time: 15-30 minutes depending on internet speed and system.
@@ -149,34 +158,21 @@ uvicorn app.main:app --reload --reload-exclude data --host 0.0.0.0 --port 8050
 │   │   ├── kegg_aggregation.py  # KO-to-KEGG aggregation + annotation
 │   │   ├── kegg_map.py          # KEGG pathway map helpers
 │   │   └── pathway_plots.py     # Errorbar, heatmap, PCA visualizations
+│   ├── report/                  # Report Generation
+│   │   ├── report_generator.py  # PDF report builder (matplotlib + fpdf2)
+│   │   └── methods_text.py      # Auto-generate Materials & Methods text
+│   ├── sra/                     # SRA Integration
+│   │   └── downloader.py        # NCBI SRA download via prefetch + fasterq-dump
 │   ├── dashboard/               # Plotly Dash UI
 │   │   ├── app.py               # Dash app initialization
 │   │   ├── layout.py            # Sidebar nav + page routing
-│   │   ├── components/
-│   │   │   └── file_browser.py  # Server-side file/directory browser modal
-│   │   └── pages/               # One file per page (16 pages)
-│   │       ├── intro_page.py           # Landing page + quick-start guide
-│   │       ├── file_manager.py         # Upload FASTQ, attach metadata
-│   │       ├── pipeline_status.py      # Launch + monitor DADA2 pipeline
-│   │       ├── datasets_page.py        # Inspect BIOM, extract sub-regions
-│   │       ├── combine_page.py         # Merge BIOM files across studies
-│   │       ├── biom_browser_page.py    # Read-only BIOM inspection
-│   │       ├── subsampling_page.py     # Rarefy + filter samples
-│   │       ├── rare_asv_page.py        # Remove low-prevalence ASVs
-│   │       ├── mothur_page.py          # BIOM <-> MOTHUR conversion
-│   │       ├── alpha_page.py           # Alpha diversity analysis
-│   │       ├── beta_page.py            # Beta diversity + ordination
-│   │       ├── taxonomy_page.py        # Taxonomy composition plots
-│   │       ├── diff_abundance_page.py  # Differential abundance (5 tools)
-│   │       ├── pathways_page.py        # PICRUSt2 pathway analysis
-│   │       ├── picrust2_page.py        # Standalone PICRUSt2 runner
-│   │       └── kegg_map_page.py        # KEGG pathway map viewer
+│   │   └── pages/               # One file per page
 │   ├── utils/                   # Utility modules
 │   │   ├── file_handler.py      # Register local FASTQ files into DB
 │   │   └── metadata_parser.py   # Metadata CSV/TSV parser + validator
 │   └── db/                      # SQLAlchemy models + database
 │       ├── database.py          # Session management
-│       └── models.py            # 12 ORM tables
+│       └── models.py            # ORM tables
 ├── r_scripts/                   # R analysis scripts
 │   ├── run_dada2.R              # DADA2 pipeline
 │   ├── run_taxonomy.R           # Taxonomy assignment
@@ -191,11 +187,13 @@ uvicorn app.main:app --reload --reload-exclude data --host 0.0.0.0 --port 8050
 │   ├── datasets/                # Processed pipeline outputs
 │   ├── picrust2_runs/           # PICRUSt2 output directories
 │   ├── kegg_cache/              # Cached KEGG API data (24h TTL)
+│   ├── sra_cache/               # Cached SRA downloads
 │   ├── references/              # SILVA databases + E. coli reference
 │   ├── combined/                # Combined/merged datasets
 │   └── exports/                 # User exports
-├── setup_ubuntu.sh              # One-command installation script
-├── setup_wsl2.sh                # WSL2-specific setup helper
+├── setup_ubuntu.sh              # Setup script for Linux (Ubuntu/Debian)
+├── setup_wsl2.sh                # Setup script for Windows (WSL2)
+├── setup_mac.sh                 # Setup script for macOS (Apple Silicon)
 ├── run.sh                       # Start the application
 ├── environment.yml              # Conda environment specification
 ├── requirements.txt             # Python dependencies (pip)
@@ -224,7 +222,7 @@ The E. coli 16S reference (`ecoli_16S.fasta`) is included in the repository and 
 
 ---
 
-## Windows WSL Setup
+## Windows WSL2 Setup
 
 If you're on Windows, you need WSL2 with Ubuntu first. If you already have it, skip to [Installation](#installation).
 
@@ -248,21 +246,14 @@ Restart your computer when prompted.
 
 After restart, Ubuntu will open automatically (or search for "Ubuntu" in the Start menu). It will ask you to create a username and password.
 
-### Step 3: Install system dependencies and Conda
+### Step 3: Clone and run the WSL2 setup script
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y build-essential curl git wget libxml2-dev \
-    libcurl4-openssl-dev libssl-dev libfontconfig1-dev \
-    libharfbuzz-dev libfribidi-dev libfreetype6-dev \
-    libtiff5-dev libjpeg-dev libpng-dev
-
-# Install Miniconda
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda3
-eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
-conda init bash
-source ~/.bashrc
+git clone https://github.com/tatsu1207/16S-Pipeline.git
+cd 16S-Pipeline
+chmod +x setup_wsl2.sh
+./setup_wsl2.sh
 ```
 
 ### Tips for WSL
@@ -273,29 +264,52 @@ source ~/.bashrc
 
 ---
 
+## macOS Setup
+
+Requires macOS with Apple Silicon (M1/M2/M3/M4).
+
+### Step 1: Install Xcode Command Line Tools
+
+```bash
+xcode-select --install
+```
+
+### Step 2: Clone and run the macOS setup script
+
+```bash
+git clone https://github.com/tatsu1207/16S-Pipeline.git
+cd 16S-Pipeline
+chmod +x setup_mac.sh
+./setup_mac.sh
+```
+
+> Note: PICRUSt2 on Apple Silicon runs via Rosetta 2 emulation (osx-64 environment). This is handled automatically by the setup script.
+
+---
+
 ## Troubleshooting
 
 ### "conda: command not found"
 
 ```bash
-eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
-conda init bash
-source ~/.bashrc
+eval "$($HOME/miniforge3/bin/conda shell.bash hook)"
+conda init bash  # or: conda init zsh (macOS)
+source ~/.bashrc  # or: source ~/.zshrc (macOS)
 ```
 
 ### R package installation fails (DADA2)
 
-Make sure system libraries are installed (see [Prerequisites](#prerequisites)), then retry:
+Make sure system libraries are installed, then retry:
 
 ```bash
 conda activate dada2_16S
 Rscript -e 'BiocManager::install("dada2", force=TRUE)'
 ```
 
-### "Permission denied" on setup_ubuntu.sh
+### "Permission denied" on setup script
 
 ```bash
-chmod +x setup_ubuntu.sh
+chmod +x setup_ubuntu.sh  # or setup_wsl2.sh / setup_mac.sh
 ```
 
 ### Port already in use

@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # ============================================================================
-# 16S Analyzer Setup Script
+# 16S Analyzer Setup Script — macOS
 # One-command installation for the 16S Analyzer
 #
-# Architecture: 4 separate conda environments
-#   microbiome — Python 3.11 + CLI bioinformatics tools (web app runs here)
-#   dada2     — R 4.3 + bioconductor-dada2 (pre-built, zero compilation)
-#   analysis  — R 4.3 + phyloseq/ANCOMBC/DESeq2/ALDEx2/Maaslin2/vegan + LinDA
-#   picrust2  — PICRUSt2 (unchanged)
+# Architecture: 5 separate conda environments
+#   microbiome_16S — Python 3.11 + CLI bioinformatics tools (web app runs here)
+#   dada2_16S      — R + bioconductor-dada2 (pinned tbb<2021 for macOS compat)
+#   analysis_16S   — R + phyloseq/ANCOMBC/DESeq2/ALDEx2 (pre-built)
+#   maaslin2_16S   — R + MaAsLin2 (via GitHub) + vegan + LinDA
+#                    Note: r-pscl has no osx-arm64 conda build, and MaAsLin2 is
+#                    unavailable for Bioconductor 3.21+, so installed from GitHub.
+#   picrust2_16S   — PICRUSt2 (unchanged)
 #
 # Features:
 #   - Skips any component that is already installed
@@ -80,7 +83,7 @@ cleanup_on_error() {
         echo ""
         echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo -e "${RED}  Setup exited unexpectedly (exit code ${exit_code}).${NC}"
-        echo -e "${RED}  The installation is incomplete. Re-run ./setup_ubuntu.sh${NC}"
+        echo -e "${RED}  The installation is incomplete. Re-run ./setup_mac.sh${NC}"
         echo -e "${RED}  to resume — already-installed components will be skipped.${NC}"
         echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     fi
@@ -130,39 +133,23 @@ SILVA_DIR="${DATA_DIR}/references"
 
 echo -e "${GREEN}"
 echo "  ╔══════════════════════════════════════════════════════╗"
-echo "  ║       🧬 16S Analyzer — Setup Script                  ║"
+echo "  ║       🧬 16S Analyzer — Setup Script (macOS)         ║"
 echo "  ║       16S rRNA Microbiome Analysis                   ║"
 echo "  ╚══════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
 # ============================================================================
-# STEP 0a: Install system dependencies
+# STEP 0a: Check Xcode Command Line Tools (provides compilers if needed)
 # ============================================================================
-step "0a" "Checking system libraries"
+step "0a" "Checking Xcode Command Line Tools"
 
-SYS_DEPS=(libbz2-dev liblzma-dev libcurl4-openssl-dev zlib1g-dev libssl-dev libxml2-dev libpng-dev)
-SYS_MISSING=()
-
-for dep in "${SYS_DEPS[@]}"; do
-    if dpkg -s "${dep}" &>/dev/null; then
-        skip "System lib: ${dep}"
-    else
-        SYS_MISSING+=("${dep}")
-    fi
-done
-
-if [ ${#SYS_MISSING[@]} -gt 0 ]; then
-    info "Installing missing system libraries: ${SYS_MISSING[*]}"
-    info "This requires sudo — you may be prompted for your password."
-    if sudo apt-get install -y "${SYS_MISSING[@]}" 2>&1 | tail -5; then
-        success "System libraries installed."
-        installed
-    else
-        warn "Could not install system libraries."
-        warn "Try manually: sudo apt-get install -y ${SYS_MISSING[*]}"
-    fi
+if xcode-select -p &>/dev/null; then
+    skip "Xcode Command Line Tools"
 else
-    info "All system libraries already present."
+    info "Installing Xcode Command Line Tools (required for compilers)..."
+    xcode-select --install 2>/dev/null || true
+    warn "If a dialog appeared, complete the install, then re-run this script."
+    error "Xcode Command Line Tools are required. Re-run after installation."
 fi
 
 # ============================================================================
@@ -171,7 +158,8 @@ fi
 step "0b" "Checking Conda installation"
 
 MINIFORGE_DIR="${HOME}/miniforge3"
-MINIFORGE_INSTALLER="Miniforge3-Linux-$(uname -m).sh"
+# macOS uses "MacOSX" in the installer name (arm64 for Apple Silicon, x86_64 for Intel)
+MINIFORGE_INSTALLER="Miniforge3-MacOSX-$(uname -m).sh"
 
 if ! has_cmd conda; then
     # Check if Miniforge3 exists but isn't in PATH
@@ -179,12 +167,13 @@ if ! has_cmd conda; then
         info "Miniforge3 found at ${MINIFORGE_DIR} but not in PATH. Activating..."
         eval "$("${MINIFORGE_DIR}/bin/conda" shell.bash hook)"
         conda init bash 2>/dev/null
+        conda init zsh 2>/dev/null
         success "Miniforge3 activated from ${MINIFORGE_DIR}"
     else
         info "Conda not found. Installing Miniforge3 (includes conda + mamba)..."
 
         if ! has_cmd wget && ! has_cmd curl; then
-            error "Neither wget nor curl found. Install one first: sudo apt install wget"
+            error "Neither wget nor curl found. Install one first: brew install wget"
         fi
 
         MINIFORGE_URL="https://github.com/conda-forge/miniforge/releases/latest/download/${MINIFORGE_INSTALLER}"
@@ -202,6 +191,7 @@ if ! has_cmd conda; then
         bash "/tmp/${MINIFORGE_INSTALLER}" -b -p "${MINIFORGE_DIR}"
         eval "$("${MINIFORGE_DIR}/bin/conda" shell.bash hook)"
         conda init bash 2>/dev/null
+        conda init zsh 2>/dev/null
         success "Miniforge3 installed to ${MINIFORGE_DIR}"
         installed
     fi
@@ -220,12 +210,12 @@ eval "$(conda shell.bash hook)"
 # ============================================================================
 step "1" "Checking for Mamba"
 
-if has_cmd mamba; then
-    MAMBA_VERSION=$(mamba --version 2>&1 | head -1)
+if has_cmd mamba && mamba --version &>/dev/null; then
+    MAMBA_VERSION=$(mamba --version 2>&1 | head -1) || true
     success "Mamba found: ${MAMBA_VERSION}"
     SOLVER="mamba"
 else
-    warn "Mamba not found. Using conda (slower). Consider installing Miniforge3 for mamba support."
+    warn "Mamba not found or broken. Using conda (slower)."
     SOLVER="conda"
 fi
 
@@ -236,7 +226,7 @@ step "2" "Checking Conda environment '${ENV_NAME}' (Python + CLI tools)"
 
 if conda env list | grep -q "^${ENV_NAME} "; then
     skip "Conda environment '${ENV_NAME}'"
-    info "To recreate from scratch, run: conda env remove -n ${ENV_NAME} && ./setup_ubuntu.sh"
+    info "To recreate from scratch, run: conda env remove -n ${ENV_NAME} && ./setup_mac.sh"
 else
     info "Creating '${ENV_NAME}' environment with Python ${PYTHON_VERSION}..."
     if ! ${SOLVER} create -n "${ENV_NAME}" -c conda-forge python=${PYTHON_VERSION} -y; then
@@ -390,7 +380,7 @@ step "3" "Checking Conda environment '${DADA2_ENV}' (R + DADA2)"
 
 if conda env list | grep -q "^${DADA2_ENV} "; then
     skip "Conda environment '${DADA2_ENV}'"
-    info "To recreate: conda env remove -n ${DADA2_ENV} && ./setup_ubuntu.sh"
+    info "To recreate: conda env remove -n ${DADA2_ENV} && ./setup_mac.sh"
 else
     clean_stale_env_dir "${DADA2_ENV}"
     info "Creating '${DADA2_ENV}' environment with pre-built bioconda packages..."
@@ -400,6 +390,7 @@ else
             bioconductor-dada2 \
             r-optparse \
             r-jsonlite \
+            "tbb<2021" \
             -y
     echo "${RWD_OUTPUT:-}" | tail -5 || true
     if [[ ${RWD_EXIT} -eq 0 ]]; then
@@ -417,11 +408,11 @@ fi
 # ============================================================================
 step "4" "Checking Conda environment '${ANALYSIS_ENV}' (R + phyloseq/ANCOMBC/DESeq2/ALDEx2)"
 
-# Note: MaAsLin2 requires R 4.3 while the other packages require R 4.4/4.5,
-# so it lives in a separate env (maaslin2_16S) to avoid dependency conflicts.
+# Note: MaAsLin2 lives in a separate env because r-pscl (a dependency) has no
+# osx-arm64 conda build, and Maaslin2 is unavailable for Bioconductor 3.21+.
 if conda env list | grep -q "^${ANALYSIS_ENV} "; then
     skip "Conda environment '${ANALYSIS_ENV}'"
-    info "To recreate: conda env remove -n ${ANALYSIS_ENV} && ./setup_ubuntu.sh"
+    info "To recreate: conda env remove -n ${ANALYSIS_ENV} && ./setup_mac.sh"
 else
     clean_stale_env_dir "${ANALYSIS_ENV}"
     info "Creating '${ANALYSIS_ENV}' environment with pre-built bioconda packages..."
@@ -447,23 +438,38 @@ else
 fi
 
 # ============================================================================
-# STEP 4b: Create 'maaslin2_16S' environment (MaAsLin2 + vegan + LinDA)
+# STEP 4b: Create 'maaslin2' environment (MaAsLin2 + vegan + LinDA)
 # ============================================================================
 step "4b" "Checking Conda environment '${MAASLIN2_ENV}' (MaAsLin2 + vegan + LinDA)"
 
-# MaAsLin2 requires R 4.3 which conflicts with the R 4.4/4.5 packages above.
+# r-pscl (a MaAsLin2 dependency) has no osx-arm64 conda build, so we create
+# the env with just r-base and install MaAsLin2 via BiocManager below.
 if conda env list | grep -q "^${MAASLIN2_ENV} "; then
     skip "Conda environment '${MAASLIN2_ENV}'"
-    info "To recreate: conda env remove -n ${MAASLIN2_ENV} && ./setup_ubuntu.sh"
+    info "To recreate: conda env remove -n ${MAASLIN2_ENV} && ./setup_mac.sh"
 else
     clean_stale_env_dir "${MAASLIN2_ENV}"
     info "Creating '${MAASLIN2_ENV}' environment with pre-built bioconda packages..."
+    # MaAsLin2 and LinDA are installed from GitHub below (not via conda).
+    # Their compiled dependencies are pre-installed here via conda to avoid
+    # source compilation failures (lme4, car, glmmTMB, etc. need compilers).
     run_with_dots "conda: ${MAASLIN2_ENV}" \
         ${SOLVER} create -n "${MAASLIN2_ENV}" --override-channels -c conda-forge -c bioconda \
-            bioconductor-maaslin2 \
+            r-base \
             r-optparse \
             r-jsonlite \
+            r-lme4 \
+            r-pbkrtest \
+            r-car \
+            r-lmertest \
+            r-glmmtmb \
+            r-foreach \
+            r-ggrepel \
+            r-modeest \
+            bioconductor-edger \
             -y
+        # Note: bioconductor-metagenomeseq has no osx-arm64 conda build;
+        # it is installed via BiocManager in the MaAsLin2 step below.
     echo "${RWD_OUTPUT:-}" | tail -5 || true
     if [[ ${RWD_EXIT} -eq 0 ]]; then
         success "Environment '${MAASLIN2_ENV}' created."
@@ -472,6 +478,32 @@ else
         warn "Failed to create '${MAASLIN2_ENV}' environment:"
         echo "${RWD_OUTPUT:-}" | tail -20 || true
         failed "Environment: ${MAASLIN2_ENV}"
+    fi
+fi
+
+# --- Install MaAsLin2 from GitHub (r-pscl has no osx-arm64 conda build, and
+#     Maaslin2 is not available for Bioconductor 3.21+ / R 4.5+) ---
+if has_r_pkg "${MAASLIN2_ENV}" "Maaslin2"; then
+    skip "R package: Maaslin2"
+else
+    info "Installing MaAsLin2 from GitHub into '${MAASLIN2_ENV}' env..."
+    run_with_dots "GitHub: Maaslin2" \
+        conda run -n "${MAASLIN2_ENV}" --no-capture-output \
+        Rscript -e "
+        if (!requireNamespace('BiocManager', quietly=TRUE))
+            install.packages('BiocManager', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
+        if (!requireNamespace('metagenomeSeq', quietly=TRUE))
+            BiocManager::install('metagenomeSeq', ask=FALSE, INSTALL_opts='--no-lock')
+        if (!requireNamespace('remotes', quietly=TRUE))
+            install.packages('remotes', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
+        remotes::install_github('biobakery/Maaslin2', upgrade='never', INSTALL_opts='--no-lock')
+    "
+    if has_r_pkg "${MAASLIN2_ENV}" "Maaslin2"; then
+        success "MaAsLin2 installed."
+        installed
+    else
+        echo "${RWD_OUTPUT:-}" | tail -20 || true
+        failed "R package: Maaslin2"
     fi
 fi
 
@@ -502,8 +534,6 @@ else
         Rscript -e "
         if (!requireNamespace('remotes', quietly=TRUE))
             install.packages('remotes', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
-        if (!requireNamespace('modeest', quietly=TRUE))
-            install.packages('modeest', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
         remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock')
     "
     echo "${RWD_OUTPUT:-}" | tail -10 || true
@@ -527,8 +557,21 @@ else
     info "Creating separate '${PICRUST2_ENV}' environment..."
     info "PICRUSt2 requires its own environment to avoid dependency conflicts."
 
-    run_with_dots "conda: picrust2" \
-        ${SOLVER} create -n "${PICRUST2_ENV}" --override-channels -c conda-forge -c bioconda picrust2 -y
+    # On Apple Silicon (osx-arm64), PICRUSt2 dependencies (hmmer, r-castor, gappa,
+    # epa-ng) have no native arm64 builds. Force x86_64 via Rosetta 2 emulation.
+    if [[ "$(uname -m)" == "arm64" ]]; then
+        info "Apple Silicon detected — installing PICRUSt2 under Rosetta 2 (x86_64)."
+        run_with_dots "conda: picrust2 (Rosetta)" \
+            env CONDA_SUBDIR=osx-64 \
+            ${SOLVER} create -n "${PICRUST2_ENV}" -c bioconda -c conda-forge picrust2 -y
+        # Pin the env to x86_64 so future installs into it stay consistent
+        if [[ ${RWD_EXIT} -eq 0 ]]; then
+            conda run -n "${PICRUST2_ENV}" conda config --env --set subdir osx-64 2>/dev/null || true
+        fi
+    else
+        run_with_dots "conda: picrust2" \
+            ${SOLVER} create -n "${PICRUST2_ENV}" -c bioconda -c conda-forge picrust2 -y
+    fi
     echo "${RWD_OUTPUT:-}" | tail -5 || true
     if [[ ${RWD_EXIT} -eq 0 ]]; then
         success "PICRUSt2 installed in separate '${PICRUST2_ENV}' environment."
@@ -613,7 +656,8 @@ validate_download() {
         return 1
     fi
     local actual_size
-    actual_size=$(stat --printf="%s" "${file}" 2>/dev/null || stat -f "%z" "${file}" 2>/dev/null || echo 0)
+    # macOS uses BSD stat (-f "%z"); GNU stat (--printf="%s") is not available by default
+    actual_size=$(stat -f "%z" "${file}" 2>/dev/null || echo 0)
     if [[ ${actual_size} -lt ${min_size} ]]; then
         warn "${label} appears truncated (${actual_size} bytes, expected >${min_size})."
         warn "Removing corrupt file. Re-run setup to retry the download."
@@ -675,7 +719,7 @@ if [[ "${SILVA_NEEDED}" == "true" ]]; then
     if [[ ! "${DOWNLOAD_SILVA}" =~ ^[Nn]$ ]]; then
         if ! has_cmd wget && ! has_cmd curl; then
             warn "Neither wget nor curl found. Skipping SILVA download."
-            warn "Install wget (sudo apt install wget) and re-run setup."
+            warn "Install curl (should be pre-installed on macOS) or wget: brew install wget"
         else
             SILVA_OK=true
 
@@ -739,7 +783,7 @@ else
     cat > "${CONFIG_FILE}" << PYEOF
 """
 16S Analyzer Configuration
-Auto-generated by setup_ubuntu.sh — edit as needed.
+Auto-generated by setup_mac.sh — edit as needed.
 """
 import os
 from pathlib import Path
@@ -797,7 +841,7 @@ def conda_cmd(args: list[str], env_name: str | None = None) -> list[str]:
 
 # --- Server ---
 HOST = "0.0.0.0"
-PORT = 7000 + os.getuid()  # e.g. UID 1000 -> port 8000, UID 1001 -> 8001
+PORT = 7000 + os.getuid()  # e.g. UID 501 -> port 7501
 DEBUG = True
 
 # --- Pipeline defaults ---
@@ -956,7 +1000,7 @@ if [[ ${FAILED_COUNT} -gt 0 ]]; then
     done
     echo ""
     warn "Some features may not work until these are resolved."
-    warn "You can re-run ./setup_ubuntu.sh to retry failed components."
+    warn "You can re-run ./setup_mac.sh to retry failed components."
     echo ""
     echo -e "${YELLOW}"
     echo "  ╔══════════════════════════════════════════════════════╗"
@@ -964,7 +1008,7 @@ if [[ ${FAILED_COUNT} -gt 0 ]]; then
     echo "  ╠══════════════════════════════════════════════════════╣"
     echo "  ║                                                      ║"
     echo "  ║  ${FAILED_COUNT} component(s) failed. See above for details.    ║"
-    echo "  ║  Re-run ./setup_ubuntu.sh to retry.                  ║"
+    echo "  ║  Re-run ./setup_mac.sh to retry.                     ║"
     echo "  ║                                                      ║"
     echo "  ║  To start the app anyway:                            ║"
     echo "  ║    conda activate ${ENV_NAME}                          ║"

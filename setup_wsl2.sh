@@ -121,6 +121,7 @@ has_r_pkg() {
 ENV_NAME="microbiome_16S"
 DADA2_ENV="dada2_16S"
 ANALYSIS_ENV="analysis_16S"
+MAASLIN2_ENV="maaslin2_16S"
 PICRUST2_ENV="picrust2_16S"
 PYTHON_VERSION="3.11"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -233,6 +234,7 @@ BIOTOOLS_MAP=(
     "mafft:mafft"
     "fasttree:FastTree,fasttree"
     "bbmap:bbduk.sh"
+    "sra-tools:prefetch,fasterq-dump"
 )
 
 for tool_pair in "${BIOTOOLS_MAP[@]}"; do
@@ -310,6 +312,7 @@ PYTHON_PACKAGES=(
     "fpdf:fpdf2"
     "statsmodels:statsmodels"
     "dash_uploader:dash-uploader"
+    "matplotlib_venn:matplotlib-venn"
 )
 
 PYTHON_MISSING=()
@@ -382,8 +385,10 @@ fi
 # ============================================================================
 # STEP 4: Create 'analysis_16S' environment (R + DA tools, pre-built)
 # ============================================================================
-step "4" "Checking Conda environment '${ANALYSIS_ENV}' (R + phyloseq/ANCOMBC/DESeq2/...)"
+step "4" "Checking Conda environment '${ANALYSIS_ENV}' (R + phyloseq/ANCOMBC/DESeq2/ALDEx2)"
 
+# Note: MaAsLin2 requires R 4.3 while the other packages require R 4.4/4.5,
+# so it lives in a separate env (maaslin2_16S) to avoid dependency conflicts.
 if conda env list | grep -q "^${ANALYSIS_ENV} "; then
     skip "Conda environment '${ANALYSIS_ENV}'"
     info "To recreate: conda env remove -n ${ANALYSIS_ENV} && ./setup_wsl2.sh"
@@ -397,7 +402,6 @@ else
             bioconductor-ancombc \
             bioconductor-deseq2 \
             bioconductor-aldex2 \
-            bioconductor-maaslin2 \
             r-optparse \
             r-jsonlite \
             -y
@@ -412,15 +416,44 @@ else
     fi
 fi
 
+# ============================================================================
+# STEP 4b: Create 'maaslin2_16S' environment (MaAsLin2 + vegan + LinDA)
+# ============================================================================
+step "4b" "Checking Conda environment '${MAASLIN2_ENV}' (MaAsLin2 + vegan + LinDA)"
+
+# MaAsLin2 requires R 4.3 which conflicts with the R 4.4/4.5 packages above.
+if conda env list | grep -q "^${MAASLIN2_ENV} "; then
+    skip "Conda environment '${MAASLIN2_ENV}'"
+    info "To recreate: conda env remove -n ${MAASLIN2_ENV} && ./setup_wsl2.sh"
+else
+    clean_stale_env_dir "${MAASLIN2_ENV}"
+    info "Creating '${MAASLIN2_ENV}' environment with pre-built bioconda packages..."
+    run_with_dots "conda: ${MAASLIN2_ENV}" \
+        ${SOLVER} create -n "${MAASLIN2_ENV}" --override-channels -c conda-forge -c bioconda \
+            bioconductor-maaslin2 \
+            r-optparse \
+            r-jsonlite \
+            -y
+    echo "${RWD_OUTPUT:-}" | tail -5 || true
+    if [[ ${RWD_EXIT} -eq 0 ]]; then
+        success "Environment '${MAASLIN2_ENV}' created."
+        installed
+    else
+        warn "Failed to create '${MAASLIN2_ENV}' environment:"
+        echo "${RWD_OUTPUT:-}" | tail -20 || true
+        failed "Environment: ${MAASLIN2_ENV}"
+    fi
+fi
+
 # --- Install vegan from CRAN (conda r-vegan has version conflicts with bioconda R) ---
-if has_r_pkg "${ANALYSIS_ENV}" "vegan"; then
+if has_r_pkg "${MAASLIN2_ENV}" "vegan"; then
     skip "R package: vegan"
 else
-    info "Installing vegan from CRAN into '${ANALYSIS_ENV}' env..."
+    info "Installing vegan from CRAN into '${MAASLIN2_ENV}' env..."
     run_with_dots "R: vegan" \
-        conda run -n "${ANALYSIS_ENV}" --no-capture-output \
+        conda run -n "${MAASLIN2_ENV}" --no-capture-output \
         Rscript -e "install.packages('vegan', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock', Ncpus=4)"
-    if has_r_pkg "${ANALYSIS_ENV}" "vegan"; then
+    if has_r_pkg "${MAASLIN2_ENV}" "vegan"; then
         success "R package installed: vegan"
         installed
     else
@@ -430,12 +463,12 @@ else
 fi
 
 # --- Install LinDA from GitHub (only R package not on bioconda) ---
-if has_r_pkg "${ANALYSIS_ENV}" "LinDA"; then
+if has_r_pkg "${MAASLIN2_ENV}" "LinDA"; then
     skip "R package: LinDA"
 else
-    info "Installing LinDA from GitHub into '${ANALYSIS_ENV}' env..."
+    info "Installing LinDA from GitHub into '${MAASLIN2_ENV}' env..."
     run_with_dots "GitHub: LinDA" \
-        conda run -n "${ANALYSIS_ENV}" --no-capture-output \
+        conda run -n "${MAASLIN2_ENV}" --no-capture-output \
         Rscript -e "
         if (!requireNamespace('remotes', quietly=TRUE))
             install.packages('remotes', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')
@@ -445,7 +478,7 @@ else
     "
     echo "${RWD_OUTPUT:-}" | tail -10 || true
 
-    if has_r_pkg "${ANALYSIS_ENV}" "LinDA"; then
+    if has_r_pkg "${MAASLIN2_ENV}" "LinDA"; then
         success "LinDA installed from GitHub."
         installed
     else
@@ -510,6 +543,7 @@ create_if_missing "${DATA_DIR}/combined"
 create_if_missing "${DATA_DIR}/exports"
 create_if_missing "${DATA_DIR}/picrust2_runs"
 create_if_missing "${DATA_DIR}/kegg_cache"
+create_if_missing "${DATA_DIR}/sra_cache"
 create_if_missing "${SILVA_DIR}"
 
 # Create __init__.py files only where missing
@@ -688,6 +722,7 @@ COMBINED_DIR = DATA_DIR / "combined"
 EXPORT_DIR = DATA_DIR / "exports"
 PICRUST2_RUNS_DIR = DATA_DIR / "picrust2_runs"
 REFERENCE_DIR = DATA_DIR / "references"
+SRA_CACHE_DIR = DATA_DIR / "sra_cache"
 R_SCRIPTS_DIR = PROJECT_DIR / "r_scripts"
 
 # --- Database ---
@@ -701,19 +736,21 @@ SILVA_SPECIES = REFERENCE_DIR / "silva_species_assignment_v138.1.fa.gz"
 CONDA_ENV_NAME = "${ENV_NAME}"
 DADA2_ENV_NAME = "${DADA2_ENV}"
 ANALYSIS_ENV_NAME = "${ANALYSIS_ENV}"
+MAASLIN2_ENV_NAME = "${MAASLIN2_ENV}"
 PICRUST2_ENV_NAME = "${PICRUST2_ENV}"
 CONDA_BASE = Path(os.environ.get("CONDA_BASE", "${CONDA_BASE_PATH}"))
 
 # Map R script filenames to the conda env that has their dependencies.
+# MaAsLin2, LinDA, and vegan (NMDS) live in a separate env due to R version conflicts.
 _R_SCRIPT_ENV_MAP = {
     "run_dada2.R": DADA2_ENV_NAME,
     "run_taxonomy.R": DADA2_ENV_NAME,
     "run_ancombc.R": ANALYSIS_ENV_NAME,
     "run_deseq2.R": ANALYSIS_ENV_NAME,
     "run_aldex2.R": ANALYSIS_ENV_NAME,
-    "run_linda.R": ANALYSIS_ENV_NAME,
-    "run_maaslin2.R": ANALYSIS_ENV_NAME,
-    "run_nmds.R": ANALYSIS_ENV_NAME,
+    "run_linda.R": MAASLIN2_ENV_NAME,
+    "run_maaslin2.R": MAASLIN2_ENV_NAME,
+    "run_nmds.R": MAASLIN2_ENV_NAME,
 }
 
 
@@ -736,10 +773,18 @@ DEBUG = True
 DADA2_DEFAULTS = {
     "trim_left_f": 0,
     "trim_left_r": 0,
-    "trunc_len_f": 250,
-    "trunc_len_r": 200,
+    "trunc_len_f": 0,
+    "trunc_len_r": 0,
     "min_overlap": 12,
     "threads": min(32, max(1, os.cpu_count() - 1)),  # Cap at 32, leave 1 core free
+}
+
+LONGREAD_DADA2_DEFAULTS = {
+    "min_len": 1000,
+    "max_len": 1600,
+    "max_ee": 10,
+    "band_size": 32,
+    "threads": min(32, max(1, os.cpu_count() - 1)),
 }
 PYEOF
 
@@ -818,9 +863,9 @@ fi
 
 # Analysis env
 echo ""
-info "Checking '${ANALYSIS_ENV}' environment (R + DA tools)..."
+info "Checking '${ANALYSIS_ENV}' environment (R + phyloseq/DESeq2/ALDEx2/ANCOMBC)..."
 if conda env list | grep -q "^${ANALYSIS_ENV} "; then
-    for r_pkg in phyloseq ANCOMBC DESeq2 ALDEx2 Maaslin2 LinDA vegan optparse jsonlite; do
+    for r_pkg in phyloseq DESeq2 ALDEx2 ANCOMBC optparse jsonlite; do
         if has_r_pkg "${ANALYSIS_ENV}" "${r_pkg}"; then
             echo -e "  ${GREEN}✓${NC} ${r_pkg}"
         else
@@ -829,6 +874,21 @@ if conda env list | grep -q "^${ANALYSIS_ENV} "; then
     done
 else
     echo -e "  ${RED}✗${NC} Environment '${ANALYSIS_ENV}' not found"
+fi
+
+# MaAsLin2 env
+echo ""
+info "Checking '${MAASLIN2_ENV}' environment (R + MaAsLin2/vegan/LinDA)..."
+if conda env list | grep -q "^${MAASLIN2_ENV} "; then
+    for r_pkg in Maaslin2 vegan LinDA optparse jsonlite; do
+        if has_r_pkg "${MAASLIN2_ENV}" "${r_pkg}"; then
+            echo -e "  ${GREEN}✓${NC} ${r_pkg}"
+        else
+            echo -e "  ${RED}✗${NC} ${r_pkg} — not installed"
+        fi
+    done
+else
+    echo -e "  ${RED}✗${NC} Environment '${MAASLIN2_ENV}' not found"
 fi
 
 # PICRUSt2

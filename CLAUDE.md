@@ -17,13 +17,14 @@ An end-to-end microbiome analysis platform: upload raw 16S rRNA FASTQ files → 
 - **Pipeline execution**: Background Python threads with subprocess spawning
 - **Server**: Uvicorn, port = 7000 + user UID
 
-### 4 Conda Environments
+### 5 Conda Environments
 
 | Environment | Purpose |
 |---|---|
-| `microbiome_16S` | Web app, FastQC, Cutadapt, MAFFT, FastTree, vsearch |
+| `microbiome_16S` | Web app, FastQC, Cutadapt, MAFFT, FastTree, vsearch, sra-tools |
 | `dada2_16S` | R 4.3 + DADA2 for denoising and taxonomy |
-| `analysis_16S` | R 4.3 + ALDEx2, DESeq2, ANCOM-BC2, LinDA, MaAsLin2, vegan |
+| `analysis_16S` | R 4.4 + ALDEx2, DESeq2, ANCOM-BC2 |
+| `maaslin2_16S` | R 4.3 + MaAsLin2, LinDA, vegan (separate env due to R version conflicts) |
 | `picrust2_16S` | PICRUSt2 functional prediction (isolated due to dependency conflicts) |
 
 ## Project Structure

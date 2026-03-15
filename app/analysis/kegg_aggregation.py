@@ -182,6 +182,13 @@ def aggregate_ko_to_pathways(
     available_kos = set(ko_counts_df.index)
     n_mapped = 0
 
+    # Normalize KO IDs: PICRUSt2 uses "ko:K00001", KEGG uses "K00001"
+    strip_prefix = any(k.startswith("ko:") for k in list(available_kos)[:10])
+    if strip_prefix:
+        ko_counts_df = ko_counts_df.copy()
+        ko_counts_df.index = ko_counts_df.index.str.replace("ko:", "", regex=False)
+        available_kos = set(ko_counts_df.index)
+
     for ko_id, pathways in ko_pathway_map.items():
         if ko_id in available_kos:
             n_mapped += 1

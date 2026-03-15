@@ -314,7 +314,7 @@ def on_launch(n_clicks, biom_data, skip_ko, threads_val):
         return no_update, no_update, no_update, no_update, no_update
 
     from app.db.database import get_session
-    from app.db.models import Picrust2Run
+    from app.db.models import Dataset, Picrust2Run
     from app.pipeline.runner import launch_picrust2_standalone
 
     # Parse threads
@@ -340,8 +340,14 @@ def on_launch(n_clicks, biom_data, skip_ko, threads_val):
 
         # Create DB record first to get the run ID
         with get_session() as db:
+            # Use dataset name if selected from DADA2, otherwise use filename
+            if biom_data.get("dataset_id"):
+                _ds = db.query(Dataset).filter(Dataset.id == biom_data["dataset_id"]).first()
+                run_label = _ds.name if _ds else biom_data["filename"].rsplit(".", 1)[0]
+            else:
+                run_label = biom_data["filename"].rsplit(".", 1)[0]
             run = Picrust2Run(
-                name=biom_data["filename"].rsplit(".", 1)[0],
+                name=run_label,
                 status="pending",
                 biom_path="",  # will be set below
                 skip_ko=bool(skip_ko),

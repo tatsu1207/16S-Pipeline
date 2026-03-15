@@ -25,11 +25,17 @@ SILVA_TRAIN_SET = REFERENCE_DIR / "silva_nr99_v138.1_train_set.fa.gz"
 SILVA_SPECIES = REFERENCE_DIR / "silva_species_assignment_v138.1.fa.gz"
 
 # --- Conda ---
+CONDA_BASE = Path(os.environ.get("CONDA_BASE", Path.home() / "miniforge3"))
 CONDA_ENV_NAME = "microbiome_16S"
 DADA2_ENV_NAME = "dada2_16S"
 ANALYSIS_ENV_NAME = "analysis_16S"
+# maaslin2_16S is a separate env for MaAsLin2/LinDA/vegan (R version conflicts).
+# Falls back to analysis_16S for older installations that have everything in one env.
+MAASLIN2_ENV_NAME = (
+    "maaslin2_16S" if (CONDA_BASE / "envs" / "maaslin2_16S").exists()
+    else "analysis_16S"
+)
 PICRUST2_ENV_NAME = "picrust2_16S"
-CONDA_BASE = Path(os.environ.get("CONDA_BASE", Path.home() / "miniforge3"))
 
 # Map R script filenames to the conda env that has their dependencies.
 _R_SCRIPT_ENV_MAP = {
@@ -38,9 +44,9 @@ _R_SCRIPT_ENV_MAP = {
     "run_ancombc.R": ANALYSIS_ENV_NAME,
     "run_deseq2.R": ANALYSIS_ENV_NAME,
     "run_aldex2.R": ANALYSIS_ENV_NAME,
-    "run_linda.R": ANALYSIS_ENV_NAME,
-    "run_maaslin2.R": ANALYSIS_ENV_NAME,
-    "run_nmds.R": ANALYSIS_ENV_NAME,
+    "run_linda.R": MAASLIN2_ENV_NAME,
+    "run_maaslin2.R": MAASLIN2_ENV_NAME,
+    "run_nmds.R": MAASLIN2_ENV_NAME,
 }
 
 
