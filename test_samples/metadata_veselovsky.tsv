@@ -1,0 +1,19 @@
+sample_id	sample_num	group	platform	region	depth	geo_loc_name	soil_type	collection_date
+SRR31516623	19	SoilA	Illumina	V4	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31516622	20	SoilA	Illumina	V4	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31516611	21	SoilA	Illumina	V4	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31516613	37	SoilB	Illumina	V4	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31516614	36	SoilB	Illumina	V4	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31516615	35	SoilB	Illumina	V4	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31527685	19	SoilA	Illumina	V3-V4	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31527684	20	SoilA	Illumina	V3-V4	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31527673	21	SoilA	Illumina	V3-V4	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31527675	37	SoilB	Illumina	V3-V4	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31527676	36	SoilB	Illumina	V3-V4	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31527677	35	SoilB	Illumina	V3-V4	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31532553	19	SoilA	PacBio	V1-V9	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31532552	20	SoilA	PacBio	V1-V9	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31532541	21	SoilA	PacBio	V1-V9	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31532543	37	SoilB	PacBio	V1-V9	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31532544	36	SoilB	PacBio	V1-V9	0-10cm	Russia: Ob area	Luvic Chernozem	2023
+SRR31532545	35	SoilB	PacBio	V1-V9	0-10cm	Russia: Ob area	Luvic Chernozem	2023

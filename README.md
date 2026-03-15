@@ -22,8 +22,6 @@ A web-based tool for processing, managing, and visualizing 16S rRNA amplicon seq
 - **Differential abundance** -- 5 tools: ALDEx2, DESeq2, ANCOM-BC2, LinDA, MaAsLin2; all-pairwise mode; volcano plots
 - **Pathway analysis** -- PICRUSt2 output analysis with multi-tool DA, KO-to-KEGG aggregation, errorbar/heatmap/PCA plots (ggpicrust2-inspired)
 - **KEGG Map** -- Targeted pathway inspection with DA-colored KEGG maps
-- **Core Microbiome** -- Identify shared taxa across groups at configurable prevalence thresholds
-- **Venn Diagrams** -- Visualize shared/unique taxa between groups
 - **SRA Download** -- Fetch public datasets from NCBI SRA by accession
 - **Analysis Report** -- Generate comprehensive PDF reports with all analysis results
 

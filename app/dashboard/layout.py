@@ -47,8 +47,6 @@ sidebar = html.Div(
                 _nav_link("Beta Diversity", "/beta"),
                 _nav_link("Taxonomy", "/taxonomy"),
                 _nav_link("Diff. Abundance", "/diff-abundance"),
-                _nav_link("Core Microbiome", "/core-microbiome"),
-                _nav_link("Venn Diagram", "/venn"),
                 # Pathway Analysis
                 html.H6("PATHWAY ANALYSIS", className="text-muted mt-4 mb-2 px-3"),
                 _nav_link("PICRUSt2", "/picrust2"),
@@ -226,16 +224,6 @@ def render_page(pathname):
         from app.dashboard.pages.kegg_map_page import get_layout as kegg_map_layout
 
         return kegg_map_layout()
-
-    if pathname == "/core-microbiome":
-        from app.dashboard.pages.core_microbiome_page import get_layout as cm_layout
-
-        return cm_layout()
-
-    if pathname == "/venn":
-        from app.dashboard.pages.venn_page import get_layout as venn_layout
-
-        return venn_layout()
 
     if pathname == "/sra-download":
         from app.dashboard.pages.sra_download_page import get_layout as sra_dl_layout

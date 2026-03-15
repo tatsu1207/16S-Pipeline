@@ -1,5 +1,5 @@
 """
-MicrobiomeDash — Introduction / landing page.
+16S Pipeline — Introduction / landing page.
 
 Static informational page (no callbacks). Provides an overview of the
 application, a quick-start workflow guide, setup instructions, and a
@@ -55,7 +55,7 @@ methods_table = dbc.Table(
         html.Tbody([
             html.Tr([
                 html.Td("Alpha Diversity"),
-                html.Td("Shannon, Simpson, Observed OTUs, Chao1, Pielou Evenness"),
+                html.Td("Shannon, Simpson, Observed ASVs, Chao1, ACE, Pielou Evenness"),
             ]),
             html.Tr([
                 html.Td("Beta Diversity"),
@@ -63,11 +63,11 @@ methods_table = dbc.Table(
             ]),
             html.Tr([
                 html.Td("Differential Abundance"),
-                html.Td("ALDEx2, ANCOM-BC, DESeq2, LinDA, MaAsLin2"),
+                html.Td("ALDEx2, ANCOM-BC2, DESeq2, LinDA, MaAsLin2 (multi-method consensus)"),
             ]),
             html.Tr([
                 html.Td("Taxonomy"),
-                html.Td("SILVA 138.2 classifier; heatmap at all ranks (Phylum to Species)"),
+                html.Td("SILVA v138.1 classifier; stacked bar plots at all ranks (Phylum to Species)"),
             ]),
             html.Tr([
                 html.Td("Pathway Analysis"),
@@ -90,7 +90,7 @@ layout = dbc.Container([
     html.Div([
         html.H2("16S Pipeline", className="mb-2"),
         html.P(
-            "An end-to-end 16S rRNA amplicon analysis platform — from raw FASTQ "
+            "An end-to-end 16S rRNA amplicon analysis platform \u2014 from raw FASTQ "
             "files to publication-ready results.",
             className="lead text-muted",
         ),
@@ -101,7 +101,7 @@ layout = dbc.Container([
     # ── About ────────────────────────────────────────────────────────────────
     html.H4("About", className="mt-4 mb-3"),
     html.P(
-        "16S Analyzer integrates quality control, amplicon sequence variant (ASV) "
+        "16S Pipeline integrates quality control, amplicon sequence variant (ASV) "
         "inference, taxonomic classification, data curation, and statistical "
         "analysis into a single browser-based interface. The platform is built "
         "around three core tools:"
@@ -121,10 +121,12 @@ layout = dbc.Container([
             [
                 "FastQC quality reports",
                 "Cutadapt primer trimming",
+                "Auto-detection of sequencing type, region & platform",
+                "Automated quality parameter selection",
                 "DADA2 ASV inference & chimera removal",
-                "SILVA 138.2 taxonomic classification",
-                "Phylogenetic tree construction",
-                "PICRUSt2 functional prediction",
+                "SILVA v138.1 taxonomic classification",
+                "Phylogenetic tree construction (MAFFT + FastTree)",
+                "PICRUSt2 functional prediction (optional)",
             ],
         ),
         _tool_card(
@@ -136,19 +138,21 @@ layout = dbc.Container([
                 "Rarefaction & sample filtering",
                 "Dataset combination (merge studies)",
                 "V-region extraction",
-                "BIOM & MOTHUR format conversion",
+                "SRA download (fetch public datasets by accession)",
+                "SRA submission helper (generate metadata spreadsheet)",
             ],
         ),
         _tool_card(
             "3. Analysis & Visualization",
             "Statistics & Figures",
             [
-                "Alpha diversity (5 metrics, group comparisons)",
+                "Alpha diversity (6 metrics, group comparisons)",
                 "Beta diversity (PCoA, NMDS, PERMANOVA)",
-                "Taxonomy heatmap plots",
-                "Differential abundance (5 methods, volcano plots)",
+                "Taxonomy stacked bar plots (all ranks)",
+                "Differential abundance (5 methods + consensus)",
                 "PICRUSt2 pathway comparison",
                 "KEGG pathway map viewer",
+                "Analysis report PDF generation",
             ],
         ),
     ], className="mt-3"),
@@ -160,21 +164,24 @@ layout = dbc.Container([
     html.P("Follow these steps to go from raw sequences to analysis results:"),
 
     dbc.ListGroup([
-        _step(1, "Register FASTQ files",
-              "Upload or link your paired-end FASTQ files.",
-              "/files", "File Registration"),
-        _step(2, "Run the DADA2 pipeline",
-              "Set primers, trimming parameters, and launch the pipeline.",
+        _step(1, "Upload FASTQ files",
+              "Upload your FASTQ files or download from NCBI SRA.",
+              "/files", "File Manager"),
+        _step(2, "Attach metadata",
+              "Upload a CSV/TSV with sample grouping information.",
+              "/files", "File Manager"),
+        _step(3, "Run the pipeline",
+              "Auto-detects parameters and runs DADA2 denoising + taxonomy.",
               "/pipeline", "Pipeline"),
-        _step(3, "Curate your data",
+        _step(4, "Curate your data",
               "Remove rare ASVs, rarefy, filter samples, or combine datasets.",
               "/biom-browser", "Data Management"),
-        _step(4, "Analyze & visualize",
-              "Explore diversity, taxonomy, and differential abundance.",
+        _step(5, "Analyze & visualize",
+              "Explore diversity, taxonomy, differential abundance, and pathways.",
               "/alpha", "Analysis"),
-        _step(5, "Pathway analysis",
-              "Run PICRUSt2 functional prediction and compare pathways.",
-              "/picrust2", "Pathways"),
+        _step(6, "Generate report",
+              "Create a comprehensive PDF report with all analysis results.",
+              "/report", "Report"),
     ], flush=True, className="mb-4"),
 
     html.Hr(),
@@ -182,12 +189,19 @@ layout = dbc.Container([
     # ── Setup ────────────────────────────────────────────────────────────────
     html.H4("Setup", className="mt-4 mb-3"),
 
-    html.H6("Prerequisites"),
+    html.H6("Supported Platforms"),
     html.Ul([
-        html.Li("Linux or WSL2 on Windows"),
+        html.Li("Linux (Ubuntu/Debian)"),
+        html.Li("Windows (via WSL2)"),
+        html.Li("macOS (Apple Silicon)"),
+    ]),
+
+    html.H6("Prerequisites", className="mt-3"),
+    html.Ul([
         html.Li(["conda or mamba (", html.A("Miniforge",
                  href="https://github.com/conda-forge/miniforge",
                  target="_blank"), " recommended)"]),
+        html.Li("8 GB RAM minimum (16 GB for PICRUSt2)"),
     ]),
 
     html.H6("Installation", className="mt-3"),
@@ -195,9 +209,19 @@ layout = dbc.Container([
         dbc.CardBody(
             html.Pre(
                 "git clone https://github.com/tatsu1207/16S-Pipeline.git && cd 16S-Pipeline\n"
-                "bash setup_ubuntu.sh      # creates conda envs, installs R packages, downloads SILVA\n"
+                "\n"
+                "# Linux\n"
+                "bash setup_ubuntu.sh\n"
+                "\n"
+                "# Windows (WSL2)\n"
+                "bash setup_wsl2.sh\n"
+                "\n"
+                "# macOS (Apple Silicon)\n"
+                "bash setup_mac.sh\n"
+                "\n"
+                "# Start the server\n"
                 "conda activate microbiome_16S\n"
-                "./run.sh                   # starts the server on port 7000 + UID",
+                "./run.sh",
                 className="mb-0",
                 style={"whiteSpace": "pre-wrap"},
             ),
@@ -206,9 +230,10 @@ layout = dbc.Container([
     ),
 
     html.P(
-        "The setup script creates four conda environments: microbiome_16S (web app), "
-        "dada2_16S (R + DADA2), analysis_16S (R + DA tools), and picrust2_16S "
-        "(PICRUSt2). It also downloads the SILVA 138.1 reference database.",
+        "The setup script creates five conda environments: microbiome_16S (web app + CLI tools), "
+        "dada2_16S (R + DADA2), analysis_16S (R + ALDEx2, DESeq2, ANCOM-BC2), "
+        "maaslin2_16S (R + MaAsLin2, LinDA, vegan), and picrust2_16S (PICRUSt2). "
+        "It also downloads the SILVA v138.1 reference database.",
         className="text-muted mt-2",
     ),
 
