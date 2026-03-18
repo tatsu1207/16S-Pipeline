@@ -68,6 +68,12 @@ vault/
 CLAUDE_REFERENCE.MD
 # --- Test files ---
 test_*.py
+test_samples/
+
+# --- One-off scripts ---
+backfill_mst.py
+register_mst.py
+split_mst_uploads.py
 
 # --- R ---
 .Rhistory
