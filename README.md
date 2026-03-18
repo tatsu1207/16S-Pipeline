@@ -43,32 +43,61 @@ A web-based tool for processing, managing, and visualizing 16S rRNA amplicon seq
 
 ## Quick Start (Docker)
 
-The fastest way to run 16S Pipeline on **any operating system** (Windows, macOS, Linux). No conda, R, or system libraries needed.
+The fastest way to run 16S Pipeline on **any operating system** (Windows, macOS, Linux). No conda, R, or system libraries needed -- everything is packaged in a single Docker image.
 
-### 1. Install Docker Desktop
+### Requirements
 
-Download from [docker.com](https://www.docker.com/products/docker-desktop/) and install. On Windows, Docker Desktop uses WSL2 automatically.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/macOS) or Docker Engine (Linux)
+- **RAM**: 8 GB minimum, 16 GB recommended (PICRUSt2 needs 11 GB+)
+- **Disk**: ~15 GB for the Docker image
 
-### 2. Download and run
+### Windows
+
+1. Download and install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/). It will enable WSL2 automatically if needed. Restart your PC when prompted.
+
+2. Open Docker Desktop and wait until it shows **"Docker Desktop is running"** (green icon in the system tray).
+
+3. Open **PowerShell** and run:
+
+```powershell
+mkdir 16s-pipeline
+cd 16s-pipeline
+curl -O https://raw.githubusercontent.com/tatsu1207/16S-Pipeline/main/docker-compose.yml
+docker compose up -d
+```
+
+4. Open **http://localhost:8016** in your browser.
+
+> First run pulls the image (~15 GB), which may take 5-15 minutes depending on your internet speed. Subsequent starts are instant.
+
+### macOS
+
+1. Download and install [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/) (supports both Apple Silicon and Intel).
+
+2. Open **Terminal** and run:
 
 ```bash
 mkdir 16s-pipeline && cd 16s-pipeline
-curl -O https://raw.githubusercontent.com/unnot/16S-Pipeline/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/tatsu1207/16S-Pipeline/main/docker-compose.yml
 docker compose up -d
 ```
 
-Or if you have the repository cloned:
+3. Open **http://localhost:8016** in your browser.
+
+### Linux
 
 ```bash
-cd 16S-Pipeline
+# Install Docker Engine if not already installed:
+# https://docs.docker.com/engine/install/
+
+mkdir 16s-pipeline && cd 16s-pipeline
+curl -O https://raw.githubusercontent.com/tatsu1207/16S-Pipeline/main/docker-compose.yml
 docker compose up -d
 ```
 
-### 3. Open the app
+Open **http://localhost:8016** in your browser.
 
-Go to **http://localhost:8016** in your browser.
-
-### Docker management
+### Managing the Docker container
 
 ```bash
 docker compose logs -f       # View logs
@@ -80,13 +109,20 @@ docker compose pull          # Update to latest version
 PORT=9000 docker compose up -d
 ```
 
-### Requirements
+### Where is my data stored?
 
-- **Docker Desktop** (Windows/macOS) or **Docker Engine** (Linux)
-- **RAM**: 8 GB minimum, 16 GB recommended (PICRUSt2 needs 11 GB+)
-- **Disk**: ~15 GB for the Docker image
+All data (uploads, pipeline outputs, database) is stored in a Docker volume called `pipeline-data`. Your data persists across container restarts and updates.
 
-> If you prefer a native installation without Docker, see the sections below.
+```bash
+# Back up your data
+docker compose down
+docker run --rm -v pipeline-data:/data -v $(pwd):/backup alpine tar czf /backup/16s-backup.tar.gz /data
+
+# View volume info
+docker volume inspect 16s-pipeline_pipeline-data
+```
+
+> If you prefer a native installation without Docker (e.g., for development or HPC environments), see the sections below.
 
 ---
 
@@ -339,6 +375,36 @@ chmod +x setup_mac.sh
 ---
 
 ## Troubleshooting
+
+### Docker: container exits immediately
+
+```bash
+# Check the logs for error messages
+docker compose logs
+
+# Ensure Docker Desktop is running (Windows/macOS)
+# Ensure you have enough RAM allocated to Docker
+```
+
+On Windows, Docker Desktop defaults to using half your system RAM. To increase it: Docker Desktop > Settings > Resources > Memory.
+
+### Docker: port 8016 already in use
+
+```bash
+# Use a different port (e.g., 9016)
+PORT=9016 docker compose up -d
+# Then open http://localhost:9016
+```
+
+### Docker: how to reset everything
+
+```bash
+docker compose down
+docker volume rm 16s-pipeline_pipeline-data
+docker compose up -d
+```
+
+This deletes all uploaded data, pipeline outputs, and the database.
 
 ### "conda: command not found"
 
