@@ -1,0 +1,21 @@
+services:
+  pipeline:
+    image: unnot1207/16s-pipeline:latest
+    # To build locally instead of pulling, uncomment the next line:
+    # build: .
+    container_name: 16s-pipeline
+    ports:
+      - "${PORT:-8016}:8016"
+    volumes:
+      - pipeline-data:/app/data
+    environment:
+      - PORT=8016
+      - DATABASE_PATH=/app/data/microbiome.db
+    deploy:
+      resources:
+        limits:
+          memory: 16g
+    restart: unless-stopped
+
+volumes:
+  pipeline-data:

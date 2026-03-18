@@ -18,7 +18,8 @@ SRA_CACHE_DIR = DATA_DIR / "sra_cache"
 R_SCRIPTS_DIR = PROJECT_DIR / "r_scripts"
 
 # --- Database ---
-DATABASE_URL = f"sqlite:///{PROJECT_DIR / 'microbiome.db'}"
+_DB_PATH = os.environ.get("DATABASE_PATH", str(PROJECT_DIR / "microbiome.db"))
+DATABASE_URL = f"sqlite:///{_DB_PATH}"
 
 # --- SILVA 138.1 ---
 SILVA_TRAIN_SET = REFERENCE_DIR / "silva_nr99_v138.1_train_set.fa.gz"
@@ -62,7 +63,7 @@ def conda_cmd(args: list[str], env_name: str | None = None) -> list[str]:
 
 # --- Server ---
 HOST = "0.0.0.0"
-PORT = 7000 + os.getuid()  # e.g. UID 1000 → port 8000, UID 1001 → 8001, …
+PORT = int(os.environ.get("PORT", 7000 + os.getuid()))  # env override for Docker
 DEBUG = True
 
 # --- Pipeline defaults ---

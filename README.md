@@ -2,7 +2,7 @@
 
 A web-based tool for processing, managing, and visualizing 16S rRNA amplicon sequencing data. Built with Plotly Dash + FastAPI + SQLite.
 
-**Supported platforms**: Linux (Ubuntu), Windows (WSL2), macOS (Apple Silicon)
+**Supported platforms**: Docker (Windows/macOS/Linux), native Linux (Ubuntu), Windows (WSL2), macOS (Apple Silicon)
 
 **Supported input**: Illumina paired-end or single-end amplicon FASTQ files targeting specific 16S variable regions (V1-V2, V3-V4, V4, V4-V5, V5-V6). Full-length 16S long reads (PacBio HiFi, Nanopore) are also supported -- auto-detected at upload, processed with DADA2 using platform-appropriate error models.
 
@@ -29,6 +29,7 @@ A web-based tool for processing, managing, and visualizing 16S rRNA amplicon seq
 
 ## Table of Contents
 
+- [Quick Start (Docker)](#quick-start-docker)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Running the App](#running-the-app)
@@ -37,6 +38,55 @@ A web-based tool for processing, managing, and visualizing 16S rRNA amplicon seq
 - [macOS Setup](#macos-setup)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
+
+---
+
+## Quick Start (Docker)
+
+The fastest way to run 16S Pipeline on **any operating system** (Windows, macOS, Linux). No conda, R, or system libraries needed.
+
+### 1. Install Docker Desktop
+
+Download from [docker.com](https://www.docker.com/products/docker-desktop/) and install. On Windows, Docker Desktop uses WSL2 automatically.
+
+### 2. Download and run
+
+```bash
+mkdir 16s-pipeline && cd 16s-pipeline
+curl -O https://raw.githubusercontent.com/unnot/16S-Pipeline/main/docker-compose.yml
+docker compose up -d
+```
+
+Or if you have the repository cloned:
+
+```bash
+cd 16S-Pipeline
+docker compose up -d
+```
+
+### 3. Open the app
+
+Go to **http://localhost:8016** in your browser.
+
+### Docker management
+
+```bash
+docker compose logs -f       # View logs
+docker compose down          # Stop
+docker compose up -d         # Restart
+docker compose pull          # Update to latest version
+
+# Use a different port
+PORT=9000 docker compose up -d
+```
+
+### Requirements
+
+- **Docker Desktop** (Windows/macOS) or **Docker Engine** (Linux)
+- **RAM**: 8 GB minimum, 16 GB recommended (PICRUSt2 needs 11 GB+)
+- **Disk**: ~15 GB for the Docker image
+
+> If you prefer a native installation without Docker, see the sections below.
 
 ---
 
@@ -189,10 +239,13 @@ uvicorn app.main:app --reload --reload-exclude data --host 0.0.0.0 --port 8050
 │   ├── references/              # SILVA databases + E. coli reference
 │   ├── combined/                # Combined/merged datasets
 │   └── exports/                 # User exports
+├── Dockerfile                   # Docker image build
+├── docker-compose.yml           # One-command Docker deployment
+├── docker-entrypoint.sh         # Docker container startup script
 ├── setup_ubuntu.sh              # Setup script for Linux (Ubuntu/Debian)
 ├── setup_wsl2.sh                # Setup script for Windows (WSL2)
 ├── setup_mac.sh                 # Setup script for macOS (Apple Silicon)
-├── run.sh                       # Start the application
+├── run.sh                       # Start the application (native install)
 ├── environment.yml              # Conda environment specification
 ├── requirements.txt             # Python dependencies (pip)
 └── Makefile                     # Development commands

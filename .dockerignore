@@ -1,0 +1,53 @@
+# Data (mounted as volume instead)
+data/uploads/*
+data/datasets/*
+data/combined/*
+data/exports/*
+data/picrust2_runs/*
+data/kegg_cache/*
+data/sra_cache/*
+data/references/silva_*.fa.gz
+
+# Database
+*.db
+*.sqlite*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.venv
+env/
+venv/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# Logs
+*.log
+run.pid
+logs/
+
+# Git
+.git/
+.gitignore
+
+# Claude
+.claude/
+CLAUDE.md
+CLAUDE_REFERENCE.MD
+
+# Vault
+vault/
+
+# Tests
+test_*.py
