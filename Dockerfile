@@ -87,13 +87,15 @@ RUN conda run -n maaslin2_16S Rscript -e " \
     install.packages('modeest', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock'); \
     remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock')"
 
-# ── Conda environment 5: picrust2_16S ─────────────────────────────────────
-# PICRUSt2 has no linux-aarch64 package on bioconda; skip on arm64 builds
+# ── Conda environment 5: picrust2_16S (optional) ────────────────────────────
+# PICRUSt2 may fail to install (no arm64 package, or solver issues).
+# The app handles missing PICRUSt2 gracefully, so don't block the build.
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
         mamba create -n picrust2_16S --override-channels -c conda-forge -c bioconda \
             picrust2 -y && \
-        mamba clean -afy; \
+        mamba clean -afy \
+        || echo "WARNING: PICRUSt2 install failed on amd64 — skipping"; \
     else \
         echo "Skipping PICRUSt2 on $TARGETARCH (no bioconda package available)"; \
     fi
