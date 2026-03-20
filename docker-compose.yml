@@ -1,6 +1,6 @@
 services:
   pipeline:
-    image: ghcr.io/tatsu1207/16S-Pipeline:latest
+    image: unnot1207/16s-pipeline:latest
     # To build locally instead of pulling, uncomment the next line:
     # build: .
     container_name: 16s-pipeline
