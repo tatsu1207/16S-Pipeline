@@ -16,8 +16,8 @@ sidebar = html.Div(
         html.H4("16S Pipeline", className="text-center my-3"),
         dbc.Button(
             id="theme-toggle-btn",
-            color="outline-secondary",
-            size="sm",
+            color="outline-light",
+            size="lg",
             className="w-100 mb-2",
         ),
         html.Hr(),

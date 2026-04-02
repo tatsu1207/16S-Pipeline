@@ -133,7 +133,7 @@ def _eutils_search_srr(accession: str) -> list[str]:
 
     except Exception as e:
         logger.error(f"E-utilities lookup failed for {accession}: {e}")
-        return []
+        raise RuntimeError(f"NCBI lookup failed for {accession}: {e}") from e
 
 
 # ── Download a single SRR ────────────────────────────────────────────────────
@@ -468,7 +468,12 @@ def run_sra_download(
         _log(f"Resolving {len(accessions)} accession(s)...")
 
         # Resolve SRP/PRJNA to SRR
-        srr_list = resolve_to_srr(accessions)
+        try:
+            srr_list = resolve_to_srr(accessions)
+        except RuntimeError as e:
+            _log(str(e))
+            _update_status(status="failed", error=str(e))
+            return
         if not srr_list:
             _log("No SRR accessions found")
             _update_status(status="failed", error="No SRR accessions found")

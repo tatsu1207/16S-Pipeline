@@ -62,7 +62,7 @@ The fastest way to run 16S Pipeline on **any operating system** (Windows, macOS,
 ```powershell
 mkdir 16s-pipeline
 cd 16s-pipeline
-curl -O https://raw.githubusercontent.com/tatsu1207/16S-Pipeline/main/docker-compose.yml
+curl.exe -O https://raw.githubusercontent.com/tatsu1207/16S-Pipeline/main/docker-compose.yml
 docker compose up -d
 ```
 
