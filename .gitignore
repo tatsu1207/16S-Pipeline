@@ -65,6 +65,7 @@ vault/
 
 # --- Claude Code ---
 .claude/
+CLAUDE.md
 CLAUDE_REFERENCE.MD
 # --- Test files ---
 test_*.py
