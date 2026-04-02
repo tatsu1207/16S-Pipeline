@@ -4,6 +4,7 @@ MicrobiomeDash — File Manager page: upload FASTQ files, manage registered file
 import base64
 import io
 import shutil
+from collections import defaultdict
 from pathlib import Path
 
 import dash_bootstrap_components as dbc
@@ -613,85 +614,124 @@ def on_register_upload(n_clicks, du_upload_id, study_name, trigger):
     # Detect sequencing type
     detection = detect_sequencing_type(saved_filenames)
 
-    # Detect variable region from first R1 / single-end file
-    variable_region = None
-    first_sample = next(iter(detection["samples"].values()), {})
-    r1_name = first_sample.get("R1")
-    if r1_name:
+    # Detect variable region per sample (from R1 / single-end file)
+    sample_regions = {}  # sample_name -> region string or None
+    sample_platforms = {}  # sample_name -> platform string
+    for sample_name, sample_info in detection["samples"].items():
+        r1_name = sample_info.get("R1")
+        if not r1_name:
+            continue
+        # Detect platform
+        plat = None
         try:
-            region_result = detect_variable_region(UPLOAD_DIR / r1_name)
-            variable_region = region_result["region"]
+            plat_result = detect_platform(UPLOAD_DIR / r1_name)
+            plat = plat_result["platform"]
         except Exception:
             pass
+        sample_platforms[sample_name] = plat or "illumina"
 
-    # Detect platform (Illumina / PacBio / Nanopore)
-    platform = None
-    if r1_name:
-        try:
-            platform_result = detect_platform(UPLOAD_DIR / r1_name)
-            platform = platform_result["platform"]
-        except Exception:
-            pass
+        # Detect variable region
+        if plat in ("pacbio", "nanopore"):
+            sample_regions[sample_name] = "V1-V9"
+        else:
+            try:
+                region_result = detect_variable_region(UPLOAD_DIR / r1_name)
+                sample_regions[sample_name] = region_result["region"]
+            except Exception:
+                sample_regions[sample_name] = None
 
-    # For long-read data, force region to V1-V9
-    if platform in ("pacbio", "nanopore"):
-        variable_region = "V1-V9"
-        # Override sequencing type to single-end for long reads
-        detection["type"] = "single-end"
+    # Group samples by (region, platform, sequencing_type)
+    region_groups = defaultdict(list)
+    for sample_name in detection["samples"]:
+        region = sample_regions.get(sample_name)
+        platform = sample_platforms.get(sample_name, "illumina")
+        region_groups[(region, platform)].append(sample_name)
 
-    # Detect primer presence (check if reads start with expected forward primer)
-    primers_detected = None
-    if variable_region and r1_name:
-        try:
-            fwd_primer = PRIMERS[variable_region]["forward"]
-            seqs = _read_fastq_sequences(UPLOAD_DIR / r1_name, n_reads=100)
-            if seqs:
-                matches = sum(1 for s in seqs if _primer_matches(s, fwd_primer))
-                primers_detected = (matches / len(seqs)) >= 0.30
-        except Exception:
-            pass
-
-    # Create DB records
+    # Create one Upload record per region group
     db = SessionLocal()
+    alert_parts = []
     try:
-        upload = Upload(
-            upload_dir=str(UPLOAD_DIR),
-            sequencing_type=detection["type"],
-            variable_region=variable_region,
-            platform=platform,
-            primers_detected=primers_detected,
-            study=(study_name or "").strip() or None,
-            total_files=len(saved_filenames),
-            total_size_mb=round(total_size, 2),
-            status="uploaded",
-        )
-        db.add(upload)
-        db.flush()
+        for (region, platform), group_samples in sorted(region_groups.items(), key=lambda x: str(x[0])):
+            seq_type = detection["type"]
+            if platform in ("pacbio", "nanopore"):
+                seq_type = "single-end"
 
-        for filename in saved_filenames:
-            sample_name = extract_sample_name(filename)
-            sample_info = detection["samples"].get(sample_name, {})
-            if sample_info.get("R1") == filename:
-                read_direction = "R1"
-            elif sample_info.get("R2") == filename:
-                read_direction = "R2"
-            else:
-                read_direction = "single"
+            # Collect filenames for this group
+            group_filenames = []
+            group_size = 0.0
+            for sample_name in group_samples:
+                info = detection["samples"][sample_name]
+                for key in ("R1", "R2"):
+                    fn = info.get(key)
+                    if fn:
+                        group_filenames.append(fn)
+                        group_size += (UPLOAD_DIR / fn).stat().st_size / (1024 * 1024)
 
-            fpath = UPLOAD_DIR / filename
-            avg_len = _avg_read_length(fpath)
-            n_reads = _count_reads(fpath)
-            db.add(
-                FastqFile(
-                    upload_id=upload.id,
-                    sample_name=sample_name,
-                    filename=filename,
-                    file_path=str(fpath),
-                    read_direction=read_direction,
-                    file_size_mb=round(fpath.stat().st_size / (1024 * 1024), 2),
-                    read_count=n_reads,
-                    avg_read_length=avg_len,
+            # Detect primer presence from first R1 in this group
+            primers_detected = None
+            first_r1 = detection["samples"][group_samples[0]].get("R1")
+            if region and first_r1:
+                try:
+                    fwd_primer = PRIMERS[region]["forward"]
+                    seqs = _read_fastq_sequences(UPLOAD_DIR / first_r1, n_reads=100)
+                    if seqs:
+                        matches = sum(1 for s in seqs if _primer_matches(s, fwd_primer))
+                        primers_detected = (matches / len(seqs)) >= 0.30
+                except Exception:
+                    pass
+
+            upload = Upload(
+                upload_dir=str(UPLOAD_DIR),
+                sequencing_type=seq_type,
+                variable_region=region,
+                platform=platform,
+                primers_detected=primers_detected,
+                study=(study_name or "").strip() or None,
+                total_files=len(group_filenames),
+                total_size_mb=round(group_size, 2),
+                status="uploaded",
+            )
+            db.add(upload)
+            db.flush()
+
+            for filename in group_filenames:
+                sample_name = extract_sample_name(filename)
+                sample_info = detection["samples"].get(sample_name, {})
+                if sample_info.get("R1") == filename:
+                    read_direction = "R1"
+                elif sample_info.get("R2") == filename:
+                    read_direction = "R2"
+                else:
+                    read_direction = "single"
+
+                fpath = UPLOAD_DIR / filename
+                avg_len = _avg_read_length(fpath)
+                n_reads = _count_reads(fpath)
+                db.add(
+                    FastqFile(
+                        upload_id=upload.id,
+                        sample_name=sample_name,
+                        filename=filename,
+                        file_path=str(fpath),
+                        read_direction=read_direction,
+                        file_size_mb=round(fpath.stat().st_size / (1024 * 1024), 2),
+                        read_count=n_reads,
+                        avg_read_length=avg_len,
+                    )
                 )
+
+            # Build per-group message
+            region_str = f", region: {region}" if region else ""
+            platform_str = f", platform: {platform}" if platform and platform != "illumina" else ""
+            if primers_detected is True:
+                primer_str = ", primers: detected"
+            elif primers_detected is False:
+                primer_str = ", primers: not detected"
+            else:
+                primer_str = ""
+            alert_parts.append(
+                f"{len(group_samples)} samples ({len(group_filenames)} files, "
+                f"{_human_size(group_size)}), {seq_type}{region_str}{platform_str}{primer_str}"
             )
 
         db.commit()
@@ -702,20 +742,18 @@ def on_register_upload(n_clicks, du_upload_id, study_name, trigger):
         db.close()
 
     # Build success message
-    region_str = f", region: {variable_region}" if variable_region else ""
-    platform_str = f", platform: {platform}" if platform and platform != "illumina" else ""
-    if primers_detected is True:
-        primer_str = ", primers: detected"
-    elif primers_detected is False:
-        primer_str = ", primers: not detected"
-    else:
-        primer_str = ""
-    msg = (
-        f"Registered {len(saved_filenames)} files "
-        f"({_human_size(total_size)}), {detection['type']}{region_str}{platform_str}{primer_str}"
-    )
     warnings = detection.get("errors", [])
-    alert_children = [html.P(msg, className="mb-0")]
+    if len(alert_parts) == 1:
+        msg = f"Registered {alert_parts[0]}"
+        alert_children = [html.P(msg, className="mb-0")]
+    else:
+        alert_children = [
+            html.P(
+                f"Registered {len(saved_filenames)} files as {len(alert_parts)} uploads:",
+                className="mb-1 fw-bold",
+            ),
+            html.Ul([html.Li(part) for part in alert_parts], className="mb-0"),
+        ]
     if warnings:
         alert_children.append(
             html.Small(
