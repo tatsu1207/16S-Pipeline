@@ -302,28 +302,21 @@ def register_downloaded_files(
 
     filenames = [f.name for f in gz_files]
 
-    # Move to flat UPLOAD_DIR
+    # Move to flat UPLOAD_DIR, auto-renaming duplicates
     total_size = 0.0
-    for fpath in gz_files:
-        dest = UPLOAD_DIR / fpath.name
-        # Handle name conflicts
-        if dest.exists():
-            stem = fpath.stem.replace(".fastq", "")
-            dest = UPLOAD_DIR / f"{stem}_sra.fastq.gz"
-        shutil.move(str(fpath), str(dest))
-        total_size += dest.stat().st_size / (1024 * 1024)
-
-    # Re-collect the actual filenames after move
-    saved_filenames = [f.name for f in sorted(UPLOAD_DIR.glob("*.fastq.gz")) if f.name in filenames or f.name.replace("_sra.fastq.gz", ".fastq.gz") in filenames]
-    # Simpler: re-scan based on what we actually moved
     saved_filenames = []
     for fpath in gz_files:
         dest = UPLOAD_DIR / fpath.name
-        alt_dest = UPLOAD_DIR / f"{fpath.stem.replace('.fastq', '')}_sra.fastq.gz"
         if dest.exists():
-            saved_filenames.append(dest.name)
-        elif alt_dest.exists():
-            saved_filenames.append(alt_dest.name)
+            # Use "_dup" prefix to avoid clashing with PE suffixes (_1/_2, _R1/_R2)
+            stem = fpath.name.replace(".fastq.gz", "")
+            counter = 2
+            while dest.exists():
+                dest = UPLOAD_DIR / f"{stem}_dup{counter}.fastq.gz"
+                counter += 1
+        shutil.move(str(fpath), str(dest))
+        saved_filenames.append(dest.name)
+        total_size += dest.stat().st_size / (1024 * 1024)
 
     # Detect sequencing type
     detection = detect_sequencing_type(saved_filenames)

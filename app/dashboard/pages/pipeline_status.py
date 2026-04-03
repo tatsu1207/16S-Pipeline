@@ -11,7 +11,7 @@ from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
 
 from app.dashboard.app import app as dash_app
 
-MAX_CPUS = os.cpu_count() or 1
+MAX_CPUS = min(32, os.cpu_count() or 1)
 
 STEPS = ["fastqc", "cutadapt", "dada2", "taxonomy"]
 STEPS_LONGREAD = ["fastqc", "dada2_longread", "taxonomy"]
@@ -426,13 +426,17 @@ def _build_sample_data(sort_by="sample_name", filters=None, ascending=True, chec
         if m.key == "study":
             study_by_sample[m.sample_name] = m.value or ""
 
+    # Group by (sample_name, upload_id) so duplicate samples across uploads
+    # appear as separate rows and don't double file IDs
     sample_map = defaultdict(lambda: {
         "files": [], "region": None, "date": None, "primers_detected": None,
-        "study": None,
+        "study": None, "upload_id": None,
     })
     for f, upload_date, region, primers_detected, study in results:
-        s = sample_map[f.sample_name]
+        key = (f.sample_name, f.upload_id)
+        s = sample_map[key]
         s["files"].append(f)
+        s["upload_id"] = f.upload_id
         if region:
             s["region"] = region
         if upload_date:
@@ -442,12 +446,22 @@ def _build_sample_data(sort_by="sample_name", filters=None, ascending=True, chec
         if study:
             s["study"] = study
 
-    # Build row dicts
+    # Build row dicts — use sample_name as key when unique, otherwise
+    # append upload_id to disambiguate
+    name_counts = defaultdict(int)
+    for (sname, _uid) in sample_map:
+        name_counts[sname] += 1
+
     sample_rows = []
     file_ids_map = {}
-    for sample_name, info in sample_map.items():
+    for (sample_name, upload_id), info in sample_map.items():
         files = info["files"]
-        file_ids_map[sample_name] = [f.id for f in files]
+        # Use disambiguated key when same sample exists in multiple uploads
+        if name_counts[sample_name] > 1:
+            display_key = f"{sample_name} (upload #{upload_id})"
+        else:
+            display_key = sample_name
+        file_ids_map[display_key] = [f.id for f in files]
 
         directions = set(f.read_direction for f in files)
         if "R1" in directions and "R2" in directions:
@@ -457,7 +471,11 @@ def _build_sample_data(sort_by="sample_name", filters=None, ascending=True, chec
         else:
             seq_type = ", ".join(sorted(d for d in directions if d))
 
-        total_reads = sum(f.read_count or 0 for f in files)
+        # For PE, count only R1 reads (R1 and R2 represent the same fragments)
+        if seq_type == "PE":
+            total_reads = sum(f.read_count or 0 for f in files if f.read_direction == "R1")
+        else:
+            total_reads = sum(f.read_count or 0 for f in files)
         avg_lengths = [f.avg_read_length for f in files if f.avg_read_length]
         avg_len = round(sum(avg_lengths) / len(avg_lengths)) if avg_lengths else None
 
@@ -468,7 +486,7 @@ def _build_sample_data(sort_by="sample_name", filters=None, ascending=True, chec
         study_val = info["study"] or study_by_sample.get(sample_name, "")
 
         sample_rows.append({
-            "sample_name": sample_name,
+            "sample_name": display_key,
             "direction": seq_type,
             "total_reads": total_reads,
             "region": info["region"],

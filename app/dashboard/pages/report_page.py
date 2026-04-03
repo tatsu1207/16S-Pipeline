@@ -95,12 +95,16 @@ def get_layout():
                             dbc.CardBody(
                                 [
                                     html.H5("Report Status", className="mb-3"),
-                                    html.Div(id="rpt-status", children=[
-                                        html.P(
-                                            "Select a dataset and click Generate.",
-                                            className="text-muted",
-                                        ),
-                                    ]),
+                                    dcc.Loading(
+                                        id="rpt-loading",
+                                        type="default",
+                                        children=html.Div(id="rpt-status", children=[
+                                            html.P(
+                                                "Select a dataset and click Generate.",
+                                                className="text-muted",
+                                            ),
+                                        ]),
+                                    ),
                                 ]
                             )
                         ),

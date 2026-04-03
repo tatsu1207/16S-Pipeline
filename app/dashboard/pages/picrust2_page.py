@@ -16,7 +16,7 @@ from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
 from app.config import DATASET_DIR, PICRUST2_RUNS_DIR
 from app.dashboard.app import app as dash_app
 
-MAX_CPUS = os.cpu_count() or 1
+MAX_CPUS = min(32, os.cpu_count() or 1)
 
 
 _picrust2_available: bool | None = None

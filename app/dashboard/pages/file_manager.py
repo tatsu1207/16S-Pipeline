@@ -74,7 +74,11 @@ layout = dbc.Container(
                             className="mt-2",
                             disabled=True,
                         ),
-                        html.Div(id="fm-upload-status", className="mt-3"),
+                        dcc.Loading(
+                            id="fm-register-loading",
+                            type="default",
+                            children=html.Div(id="fm-upload-status", className="mt-3"),
+                        ),
                     ]
                 ),
             ],
@@ -301,7 +305,8 @@ def _build_files_table(sort_by="sample_name", filters=None, ascending=True, chec
             if m.key == "study":
                 study_by_sample[m.sample_name] = m.value or ""
 
-        # Group files by sample_name
+        # Group files by (sample_name, upload_id) so duplicate samples across
+        # uploads appear as separate rows
         from collections import defaultdict
         sample_map = defaultdict(lambda: {
             "files": [], "total_size": 0.0, "date": None,
@@ -309,7 +314,8 @@ def _build_files_table(sort_by="sample_name", filters=None, ascending=True, chec
             "study": None,
         })
         for f, upload_date, region, primers_detected, study in results:
-            s = sample_map[f.sample_name]
+            key = (f.sample_name, f.upload_id)
+            s = sample_map[key]
             s["files"].append(f)
             s["total_size"] += f.file_size_mb or 0
             s["upload_id"] = f.upload_id
@@ -322,9 +328,18 @@ def _build_files_table(sort_by="sample_name", filters=None, ascending=True, chec
             if study:
                 s["study"] = study
 
+        # Use disambiguated display names when same sample exists in multiple uploads
+        name_counts = defaultdict(int)
+        for (sname, _uid) in sample_map:
+            name_counts[sname] += 1
+
         # Build rows
         sample_rows = []
-        for sample_name, info in sample_map.items():
+        for (sample_name, upload_id), info in sample_map.items():
+            if name_counts[sample_name] > 1:
+                display_name = f"{sample_name} (upload #{upload_id})"
+            else:
+                display_name = sample_name
             files = sorted(info["files"], key=lambda x: x.filename)
             directions = set(f.read_direction for f in files)
             if "R1" in directions and "R2" in directions:
@@ -344,7 +359,11 @@ def _build_files_table(sort_by="sample_name", filters=None, ascending=True, chec
                 for f in files
             ]
 
-            total_reads = sum(f.read_count or 0 for f in files)
+            # For PE, count only R1 reads (R1 and R2 represent the same fragments)
+            if direction == "PE":
+                total_reads = sum(f.read_count or 0 for f in files if f.read_direction == "R1")
+            else:
+                total_reads = sum(f.read_count or 0 for f in files)
             avg_lengths = [f.avg_read_length for f in files if f.avg_read_length]
             avg_len = round(sum(avg_lengths) / len(avg_lengths)) if avg_lengths else None
 
@@ -355,7 +374,7 @@ def _build_files_table(sort_by="sample_name", filters=None, ascending=True, chec
             study_val = info["study"] or study_by_sample.get(sample_name, "")
 
             sample_rows.append({
-                "sample_name": sample_name,
+                "sample_name": display_name,
                 "direction": direction,
                 "file_links": file_links,
                 "total_reads": total_reads,
@@ -517,7 +536,7 @@ def on_file_uploaded(file_paths):
     upload_dir = latest.parent  # UPLOAD_DIR/{upload_id}/
     all_files = [
         f.name for f in sorted(upload_dir.iterdir())
-        if f.is_file() and (f.name.endswith(".fastq.gz") or f.name.endswith(".fq.gz"))
+        if f.is_file() and any(f.name.endswith(ext) for ext in (".fastq.gz", ".fq.gz", ".fastq", ".fq"))
     ]
     n = len(all_files)
     return html.Small(
@@ -561,41 +580,29 @@ def on_register_upload(n_clicks, du_upload_id, study_name, trigger):
 
     staging_dir = UPLOAD_DIR / du_upload_id
     if not staging_dir.exists():
-        return no_update, no_update
+        return dbc.Alert("No files found to register.", color="warning"), no_update
 
     staged_files = [
         f for f in sorted(staging_dir.iterdir())
-        if f.is_file() and (f.name.endswith(".fastq.gz") or f.name.endswith(".fq.gz"))
+        if f.is_file() and any(f.name.endswith(ext) for ext in (".fastq.gz", ".fq.gz", ".fastq", ".fq"))
     ]
 
     if not staged_files:
         shutil.rmtree(staging_dir, ignore_errors=True)
-        return no_update, no_update
+        return dbc.Alert("No FASTQ files found to register.", color="warning"), no_update
 
+    # Reject if any filenames already exist in UPLOAD_DIR
     saved_filenames = [f.name for f in staged_files]
-
-    # Check for duplicate filenames already registered in the DB
-    db = SessionLocal()
-    try:
-        existing = (
-            db.query(FastqFile.filename)
-            .filter(FastqFile.filename.in_(saved_filenames))
-            .all()
-        )
-        dupes = [row.filename for row in existing]
-    finally:
-        db.close()
-
+    dupes = [f.name for f in staged_files if (UPLOAD_DIR / f.name).exists()]
     if dupes:
-        # Clean up staging directory
         shutil.rmtree(staging_dir, ignore_errors=True)
         dupe_list = html.Ul([html.Li(f, className="text-warning") for f in sorted(dupes)])
         return (
             dbc.Alert(
                 [
-                    html.P("These filenames are already registered:", className="mb-1 fw-bold"),
+                    html.P("These files are already registered:", className="mb-1 fw-bold"),
                     dupe_list,
-                    html.P("Please rename the files and upload again.", className="mb-0 mt-2"),
+                    html.P("Delete the existing files first, then re-upload.", className="mb-0 mt-2"),
                 ],
                 color="danger",
             ),
@@ -652,9 +659,15 @@ def on_register_upload(n_clicks, du_upload_id, study_name, trigger):
     alert_parts = []
     try:
         for (region, platform), group_samples in sorted(region_groups.items(), key=lambda x: str(x[0])):
-            seq_type = detection["type"]
+            # Determine sequencing type per group from actual file pairs
             if platform in ("pacbio", "nanopore"):
                 seq_type = "single-end"
+            else:
+                has_pairs = any(
+                    detection["samples"][s].get("R1") and detection["samples"][s].get("R2")
+                    for s in group_samples
+                )
+                seq_type = "paired-end" if has_pairs else "single-end"
 
             # Collect filenames for this group
             group_filenames = []
@@ -944,6 +957,7 @@ def on_metadata_upload(content, filename, trigger):
             db.query(UploadMetadata).filter(
                 UploadMetadata.upload_id == uid
             ).delete()
+            db.flush()
 
             for _, row in df.iterrows():
                 sample_name = str(row[sample_col])
@@ -988,6 +1002,7 @@ def on_metadata_upload(content, filename, trigger):
                     db.query(SampleMetadata).filter(
                         SampleMetadata.sample_id == sid,
                     ).delete()
+                    db.flush()
                     for col in meta_cols:
                         val = row[col]
                         if pd.notna(val):

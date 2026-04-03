@@ -31,7 +31,7 @@ from app.analysis.shared import (
 from app.dashboard.app import app as dash_app
 
 import os as _os
-_MAX_CPUS = _os.cpu_count() or 1
+_MAX_CPUS = min(32, _os.cpu_count() or 1)
 
 TOOL_OPTIONS = [
     {"label": "ANCOM-BC2", "value": "ancombc"},

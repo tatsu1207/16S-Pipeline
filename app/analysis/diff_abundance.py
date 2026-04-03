@@ -109,7 +109,7 @@ def run_da_tool(
     # (ANCOM-BC2, ALDEx2, DESeq2, MaAsLin2 — not LinDA)
     if tool in ("ancombc", "aldex2", "deseq2", "maaslin2"):
         import os
-        script_args["threads"] = threads or max(1, (os.cpu_count() or 1) // 2)
+        script_args["threads"] = threads or min(32, max(1, (os.cpu_count() or 1) // 2))
 
     result = run_r_script(script, script_args, on_line=on_log)
 

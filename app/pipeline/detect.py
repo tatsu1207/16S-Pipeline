@@ -94,10 +94,12 @@ def detect_sequencing_type(filenames: list[str]) -> dict:
                 samples[sample] = {"R1": None, "R2": r2}
 
         if unmatched:
-            errors.append(
-                f"{len(unmatched)} file(s) don't match paired-end patterns: "
-                f"{unmatched[:3]}{'...' if len(unmatched) > 3 else ''}"
-            )
+            # Add unmatched files as single-end samples (e.g. long-read files
+            # uploaded alongside paired-end Illumina files)
+            for fn in unmatched:
+                sample = extract_sample_name(fn)
+                if sample not in samples:
+                    samples[sample] = {"R1": fn, "R2": None}
 
         # Determine overall type
         has_pairs = any(s["R1"] and s["R2"] for s in samples.values())
