@@ -23,14 +23,10 @@ This tutorial walks through a complete 16S rRNA amplicon analysis using 16S-Pipe
 **Start the server:**
 
 ```bash
-# Native installation
-bash run.sh
-
-# Docker
 docker compose up -d
 ```
 
-Open your browser and navigate to `http://localhost:8016` (Docker) or the URL shown in the terminal.
+Open your browser and navigate to `http://localhost:8016`.
 
 ---
 
@@ -67,9 +63,9 @@ Metadata associates each sample with experimental groups for downstream statisti
 
 1. Click **File Manager** in the left sidebar.
 2. In the **Upload Sample Metadata** section, click **Download Template** to get a pre-filled TSV template with your sample names.
-3. Open the template in a spreadsheet editor and add a `group` column:
+3. Open the template in a spreadsheet editor and add a `source` column:
 
-| sample_name   | group  |
+| sample_name   | source |
 |---------------|--------|
 | SRR31516611   | soil-A |
 | SRR31516613   | soil-A |
@@ -187,7 +183,7 @@ Extract specific variable regions from processed datasets for targeted compariso
 Alpha diversity measures within-sample diversity.
 
 1. Click **Alpha Diversity** in the left sidebar.
-2. Select your dataset and choose `group` as the grouping variable.
+2. Select your dataset and choose `source` as the grouping variable.
 3. The platform computes multiple metrics:
    - **Shannon entropy** — Accounts for both richness and evenness
    - **Simpson index** — Probability that two randomly chosen individuals belong to different species
@@ -209,7 +205,7 @@ Alpha diversity measures within-sample diversity.
 Beta diversity measures between-sample differences in community composition.
 
 1. Click **Beta Diversity** in the left sidebar.
-2. Select your dataset and choose `group` as the grouping variable.
+2. Select your dataset and choose `source` as the grouping variable.
 3. Choose a distance metric:
    - **Bray-Curtis** — Quantitative (considers abundance)
    - **Jaccard** — Qualitative (presence/absence only)
@@ -240,7 +236,7 @@ Interactive stacked bar plots show relative abundance per sample. At the phylum 
 A key feature of 16S-Pipeline is the integration of five complementary differential abundance methods.
 
 1. Click **Differential Abundance** in the left sidebar.
-2. Select your dataset and choose `group` as the grouping variable.
+2. Select your dataset and choose `source` as the grouping variable.
 3. Select one or more DA methods:
 
 | Method | Approach | Characteristics |
@@ -267,7 +263,78 @@ A key feature of 16S-Pipeline is the integration of five complementary different
 
 ---
 
-## Step 9: Functional Prediction with PICRUSt2
+## Step 9: Correlation Heatmap
+
+Visualize pairwise correlations between taxa to identify co-occurring or mutually exclusive organisms.
+
+1. Click **Correlation Heatmap** in the left sidebar.
+2. Select your dataset.
+3. Choose the analysis mode:
+   - **Taxon-taxon**: Spearman correlations between the top-N most abundant taxa
+   - **Taxon-metadata**: Correlations between taxa and numeric metadata variables
+4. Set the number of top taxa to include (e.g., 30).
+5. Click **Run**. The heatmap displays pairwise Spearman correlation coefficients with significance indicators.
+
+> **Interpretation:** Strong positive correlations (red) suggest taxa that co-occur, while strong negative correlations (blue) suggest competitive or niche-partitioning relationships.
+
+---
+
+## Step 10: Network Analysis
+
+Build microbial co-occurrence networks to visualize community interaction patterns.
+
+1. Click **Network Analysis** in the left sidebar.
+2. Select your dataset.
+3. Choose a correlation method:
+   - **SparCC**: Compositionally-aware correlation estimation (recommended for 16S data)
+   - **Spearman**: Standard rank correlation
+4. Set the **correlation threshold** (e.g., 0.3) — only edges above this threshold are shown.
+5. Set the number of top taxa to include.
+6. Click **Run**. An interactive force-directed network graph is displayed:
+   - **Node size** reflects mean relative abundance
+   - **Edge color** indicates positive (green) or negative (red) correlation
+   - **Edge width** scales with correlation strength
+
+---
+
+## Step 11: Random Forest Classification
+
+Use machine learning to identify which taxa best discriminate between groups.
+
+1. Click **Random Forest** in the left sidebar.
+2. Select your dataset and choose `source` as the grouping variable.
+3. Adjust parameters:
+   - **Number of trees**: Default 500 (higher = more stable importances)
+   - **Top features**: Number of important taxa to display
+   - **CV folds**: Cross-validation folds (auto-adjusted to minimum class size)
+4. Click **Run**. The analysis produces:
+   - **Feature importance plot**: Bar chart of taxa ranked by Random Forest importance
+   - **Cross-validation accuracy**: Model performance estimate with stratified k-fold CV
+   - **Confusion matrix**: Classification performance per group
+
+> **Note:** With only 3 samples per group, cross-validation accuracy will be limited. Larger sample sizes yield more reliable feature importance rankings.
+
+---
+
+## Step 12: Association Biplot
+
+Constrained ordination methods (db-RDA and CCA) link community composition to environmental or experimental variables.
+
+1. Click **Association Biplot** in the left sidebar.
+2. Select your dataset and upload metadata with numeric environmental variables.
+3. Choose a method:
+   - **db-RDA** (distance-based Redundancy Analysis): Works with any distance metric, suitable for abundance data
+   - **CCA** (Canonical Correspondence Analysis): Chi-square-based, designed for count data with unimodal species responses
+4. Select the environmental variables to use as constraints.
+5. Choose a grouping variable for sample coloring.
+6. Click **Run**. The biplot shows:
+   - **Sample scores**: Points positioned by constrained ordination axes
+   - **Environmental vectors**: Arrows showing the direction and strength of each constraining variable
+   - **Proportion explained**: Variance in community composition explained by the constrained axes
+
+---
+
+## Step 13: Functional Prediction with PICRUSt2
 
 PICRUSt2 predicts functional potential (metabolic pathways, enzyme abundances) from 16S ASV data.
 
@@ -280,7 +347,7 @@ PICRUSt2 predicts functional potential (metabolic pathways, enzyme abundances) f
 
 ---
 
-## Step 10: Pathway and KEGG Map Analysis
+## Step 14: Pathway and KEGG Map Analysis
 
 Once PICRUSt2 results are available, you can perform functional differential abundance analysis.
 
@@ -288,7 +355,7 @@ Once PICRUSt2 results are available, you can perform functional differential abu
 
 1. Click **Pathways** in the left sidebar.
 2. Select the PICRUSt2 run and your metadata.
-3. Choose `group` as the grouping variable and select DA methods (same five methods as Step 8).
+3. Choose `source` as the grouping variable and select DA methods (same five methods as Step 8).
 4. Click **Run**. The platform applies the multi-method DA framework to predicted MetaCyc pathway abundances, generating:
    - **Error bar plots** showing pathway abundance differences between groups
    - **Heatmaps** of significantly different pathways
@@ -298,7 +365,7 @@ Once PICRUSt2 results are available, you can perform functional differential abu
 
 1. Click **KEGG Map** in the left sidebar.
 2. Select the PICRUSt2 run and upload your metadata.
-3. Choose `group` as the grouping variable.
+3. Choose `source` as the grouping variable.
 4. Select a group comparison (e.g., `soil-A vs soil-B`) for pairwise differential abundance coloring.
 5. Choose a KEGG pathway (e.g., `map00190 — Oxidative phosphorylation`).
 6. The platform:
@@ -312,11 +379,11 @@ Once PICRUSt2 results are available, you can perform functional differential abu
 
 ---
 
-## Step 11: Generate a PDF Report
+## Step 15: Generate a PDF Report
 
 1. Click **Analysis Report** in the left sidebar.
 2. Select your dataset.
-3. Choose `group` as the grouping variable.
+3. Choose `source` as the grouping variable.
 4. Select which sections to include:
    - Dataset Summary
    - Materials & Methods (auto-generated text)
@@ -370,6 +437,12 @@ Each dataset is auto-detected and processed with platform-appropriate parameters
 - **PICRUSt2**: Predict functional potential from 16S data (requires 11+ GB RAM)
 - **Pathway Analysis**: Compare MetaCyc pathway abundances between groups using the same multi-method DA framework
 - **KEGG Pathway Maps**: Interactive visualization of predicted KO/EC numbers mapped onto KEGG pathway diagrams
+
+### Advanced Statistical Analysis
+- **Correlation Heatmap**: Spearman correlations between top taxa or between taxa and numeric metadata
+- **Network Analysis**: Co-occurrence networks using SparCC or Spearman with interactive force-directed visualization
+- **Random Forest**: Machine learning classification to identify discriminant taxa between groups
+- **Association Biplot**: Constrained ordination (db-RDA, CCA) linking community composition to environmental variables
 
 ### SRA Submission Helper
 - Generate NCBI SRA submission metadata spreadsheets from your registered files

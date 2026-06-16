@@ -59,7 +59,8 @@ RUN conda run -n microbiome_16S pip install --no-cache-dir \
     fpdf2 \
     statsmodels \
     dash-uploader \
-    matplotlib-venn
+    matplotlib-venn \
+    scikit-learn
 
 # ── Conda environment 2: dada2_16S (R + DADA2) ────────────────────────────
 RUN mamba create -n dada2_16S --override-channels -c conda-forge -c bioconda \

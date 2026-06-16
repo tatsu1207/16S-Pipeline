@@ -2,7 +2,7 @@
 
 A web-based tool for processing, managing, and visualizing 16S rRNA amplicon sequencing data. Built with Plotly Dash + FastAPI + SQLite.
 
-**Supported platforms**: Docker (Windows/macOS/Linux), native Linux (Ubuntu)
+**Supported platforms**: Docker (Windows/macOS/Linux)
 
 **Supported input**: Illumina paired-end or single-end amplicon FASTQ files targeting specific 16S variable regions (V1-V2, V3-V4, V4, V4-V5, V5-V6). Full-length 16S long reads (PacBio HiFi, Nanopore) are also supported -- auto-detected at upload, processed with DADA2 using platform-appropriate error models.
 
@@ -29,10 +29,7 @@ A web-based tool for processing, managing, and visualizing 16S rRNA amplicon seq
 
 ## Table of Contents
 
-- [Quick Start (Docker)](#quick-start-docker)
-- [Prerequisites](#prerequisites)
 - [Installation](#installation)
-- [Running the App](#running-the-app)
 - [Project Structure](#project-structure)
 - [Troubleshooting](#troubleshooting)
 - [Citation](#citation)
@@ -40,9 +37,9 @@ A web-based tool for processing, managing, and visualizing 16S rRNA amplicon seq
 
 ---
 
-## Quick Start (Docker)
+## Installation
 
-The fastest way to run 16S Pipeline on **any operating system** (Windows, macOS, Linux). No conda, R, or system libraries needed -- everything is packaged in a single Docker image. See the [Tutorial](TUTORIAL.md) for a step-by-step guide with example data.
+Everything is packaged in a single Docker image -- no conda, R, or system libraries needed. See the [Tutorial](TUTORIAL.md) for a step-by-step guide with example data.
 
 ### Requirements
 
@@ -128,79 +125,6 @@ docker run --rm -v pipeline-data:/data -v $(pwd):/backup alpine tar czf /backup/
 docker volume inspect 16s-pipeline_pipeline-data
 ```
 
-> If you prefer a native installation without Docker (e.g., for development or HPC environments), see the sections below.
-
----
-
-## Prerequisites
-
-- **Operating System**: Ubuntu/Debian Linux. For Windows/macOS, use [Docker](#quick-start-docker).
-- **Conda**: Miniforge recommended ([install guide](https://github.com/conda-forge/miniforge))
-- **RAM**: 8 GB minimum, 16 GB recommended (16 GB required for PICRUSt2)
-- **Disk Space**: ~10 GB for software + reference databases
-
----
-
-## Installation
-
-### Step 1: Clone the repository
-
-```bash
-git clone https://github.com/tatsu1207/16S-Pipeline.git
-cd 16S-Pipeline
-```
-
-### Step 2: Run the setup script for your platform
-
-The setup script uses a **5-environment architecture** to avoid dependency conflicts:
-
-| Environment | Contents |
-|-------------|----------|
-| `microbiome_16S` | Python 3.11 + CLI tools (FastQC, Cutadapt, MAFFT, FastTree, vsearch, sra-tools). The web app runs here. |
-| `dada2_16S` | R 4.3 + DADA2 (pre-built from bioconda, zero compilation) |
-| `analysis_16S` | R 4.4 + ALDEx2, DESeq2, ANCOM-BC2 |
-| `maaslin2_16S` | R 4.3 + MaAsLin2, LinDA, vegan (separate env due to R version conflicts) |
-| `picrust2_16S` | PICRUSt2 functional prediction |
-
-The script also:
-- Installs all Python packages (FastAPI, Dash, scikit-bio, biom-format, etc.)
-- Downloads SILVA 138.1 reference databases (optional, prompted)
-- Generates `app/config.py` with auto-detected paths
-- Skips any component that is already installed (safe to re-run)
-
-```bash
-chmod +x setup_ubuntu.sh
-./setup_ubuntu.sh
-```
-
-> For Windows/macOS users: use the [Docker installation](#quick-start-docker) instead.
-
-> Expected time: 15-30 minutes depending on internet speed and system.
-
-### Step 3: Activate the environment
-
-```bash
-conda activate microbiome_16S
-```
-
----
-
-## Running the App
-
-```bash
-conda activate microbiome_16S
-./run.sh
-```
-
-The app runs in the background. The port is auto-assigned based on your UID (7000 + UID). Open the URL shown in the terminal output.
-
-To run manually in the foreground:
-
-```bash
-conda activate microbiome_16S
-uvicorn app.main:app --reload --reload-exclude data --host 0.0.0.0 --port 8050
-```
-
 ---
 
 ## Project Structure
@@ -276,39 +200,14 @@ uvicorn app.main:app --reload --reload-exclude data --host 0.0.0.0 --port 8050
 │   └── exports/                 # User exports
 ├── Dockerfile                   # Docker image build
 ├── docker-compose.yml           # One-command Docker deployment
-├── docker-entrypoint.sh         # Docker container startup script
-├── setup_ubuntu.sh              # Setup script for Linux (Ubuntu/Debian/WSL2)
-├── run.sh                       # Start the application (native install)
-├── environment.yml              # Conda environment specification
-├── requirements.txt             # Python dependencies (pip)
-└── Makefile                     # Development commands
+└── docker-entrypoint.sh         # Docker container startup script
 ```
-
----
-
-## Download Reference Databases
-
-The setup script will offer to download SILVA automatically. If you skipped that step:
-
-```bash
-cd data/references
-
-# SILVA 138.1 training set for DADA2 (~24 MB)
-wget https://zenodo.org/record/4587955/files/silva_nr99_v138.1_train_set.fa.gz
-
-# SILVA 138.1 species assignment (~77 MB)
-wget https://zenodo.org/record/4587955/files/silva_species_assignment_v138.1.fa.gz
-
-cd ../..
-```
-
-The E. coli 16S reference (`ecoli_16S.fasta`) is included in the repository and used for primer orientation detection.
 
 ---
 
 ## Troubleshooting
 
-### Docker: container exits immediately
+### Container exits immediately
 
 ```bash
 # Check the logs for error messages
@@ -320,7 +219,7 @@ docker compose logs
 
 On Windows, Docker Desktop defaults to using half your system RAM. To increase it: Docker Desktop > Settings > Resources > Memory.
 
-### Docker: port 8016 already in use
+### Port 8016 already in use
 
 ```bash
 # Use a different port (e.g., 9016)
@@ -328,7 +227,7 @@ PORT=9016 docker compose up -d
 # Then open http://localhost:9016
 ```
 
-### Docker: how to reset everything
+### How to reset everything
 
 ```bash
 docker compose down
