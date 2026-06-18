@@ -82,11 +82,18 @@ RUN mamba create -n maaslin2_16S --override-channels -c conda-forge -c bioconda 
 RUN conda run -n maaslin2_16S Rscript -e \
     "install.packages('vegan', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock', Ncpus=4)"
 
-# Install LinDA from GitHub
+# Install LinDA from GitHub (retry on failure — GitHub API can be flaky)
 RUN conda run -n maaslin2_16S Rscript -e " \
     install.packages('remotes', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock'); \
     install.packages('modeest', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock'); \
-    remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock')"
+    tryCatch( \
+        remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock'), \
+        error = function(e) { \
+            message('First attempt failed, retrying...'); \
+            Sys.sleep(10); \
+            remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock') \
+        } \
+    )"
 
 # ── Conda environment 5: picrust2_16S (optional) ────────────────────────────
 # PICRUSt2 may fail to install (no arm64 package, or solver issues).
