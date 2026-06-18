@@ -39,6 +39,7 @@ import app.dashboard.pages.correlation_page  # noqa: F401
 import app.dashboard.pages.network_page  # noqa: F401
 import app.dashboard.pages.association_page  # noqa: F401
 import app.dashboard.pages.random_forest_page  # noqa: F401
+import app.dashboard.pages.longitudinal_page  # noqa: F401
 
 
 # ── FastAPI application ───────────────────────────────────────────────────────

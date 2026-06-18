@@ -51,6 +51,7 @@ sidebar = html.Div(
                 _nav_link("Correlation Heatmap", "/correlation"),
                 _nav_link("Network Analysis", "/network"),
                 _nav_link("Association Biplot", "/association"),
+                _nav_link("Longitudinal", "/longitudinal"),
                 # Pathway Analysis
                 html.H6("PATHWAY ANALYSIS", className="text-muted mt-4 mb-2 px-3"),
                 _nav_link("PICRUSt2", "/picrust2"),
@@ -258,6 +259,11 @@ def render_page(pathname):
         from app.dashboard.pages.association_page import get_layout as assoc_layout
 
         return assoc_layout()
+
+    if pathname == "/longitudinal":
+        from app.dashboard.pages.longitudinal_page import get_layout as lo_layout
+
+        return lo_layout()
 
     if pathname == "/random-forest":
         from app.dashboard.pages.random_forest_page import get_layout as rf_layout

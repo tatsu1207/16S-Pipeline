@@ -48,6 +48,7 @@ _R_SCRIPT_ENV_MAP = {
     "run_linda.R": MAASLIN2_ENV_NAME,
     "run_maaslin2.R": MAASLIN2_ENV_NAME,
     "run_nmds.R": MAASLIN2_ENV_NAME,
+    "run_maaslin2_longitudinal.R": MAASLIN2_ENV_NAME,
 }
 
 
