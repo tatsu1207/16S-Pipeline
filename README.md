@@ -20,6 +20,7 @@ A web-based tool for processing, managing, and visualizing 16S rRNA amplicon seq
 - **Beta diversity** -- Bray-Curtis / Jaccard distance, PCoA, NMDS, PERMANOVA (pairwise + global)
 - **Taxonomy** -- Stacked bar plots at any taxonomic level
 - **Differential abundance** -- 5 tools: ALDEx2, DESeq2, ANCOM-BC2, LinDA, MaAsLin2; all-pairwise mode; volcano plots
+- **Longitudinal analysis** -- Repeated-measures support: alpha trajectories, beta volatility, temporal DA (MaAsLin2 mixed-effects), temporal heatmaps
 - **Pathway analysis** -- PICRUSt2 output analysis with multi-tool DA, KO-to-KEGG aggregation, errorbar/heatmap/PCA plots (ggpicrust2-inspired)
 - **KEGG Map** -- Targeted pathway inspection with DA-colored KEGG maps
 - **SRA Download** -- Fetch public datasets from NCBI SRA by accession
@@ -188,7 +189,8 @@ docker volume inspect 16s-pipeline_pipeline-data
 │   ├── run_deseq2.R             # DESeq2 DA
 │   ├── run_ancombc.R            # ANCOM-BC2 DA
 │   ├── run_linda.R              # LinDA DA
-│   └── run_maaslin2.R           # MaAsLin2 DA
+│   ├── run_maaslin2.R           # MaAsLin2 DA
+│   └── run_maaslin2_longitudinal.R  # MaAsLin2 longitudinal (mixed-effects)
 ├── data/                        # Data storage (gitignored except placeholders)
 │   ├── uploads/                 # User FASTQ uploads
 │   ├── datasets/                # Processed pipeline outputs
