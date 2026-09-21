@@ -977,13 +977,15 @@ def update_selection_summary(checked_samples, run_name, file_ids_map):
         badges.append(dbc.Badge(r, color="primary", className="me-1"))
 
     warnings = []
+    has_blocking_error = False
     if len(types) > 1:
         warnings.append(dbc.Badge(
             "Mixed SE/PE", color="warning", className="me-1",
         ))
     if len(regions) > 1:
+        has_blocking_error = True
         warnings.append(dbc.Badge(
-            "Mixed regions", color="warning", className="me-1",
+            "Mixed regions — cannot run pipeline", color="danger", className="me-1",
         ))
 
     summary = html.Div([
@@ -992,8 +994,8 @@ def update_selection_summary(checked_samples, run_name, file_ids_map):
         *warnings,
     ])
 
-    # Enable button only when samples are selected AND run name is provided
-    enabled = bool(run_name and run_name.strip())
+    # Enable button only when samples are selected, run name is provided, and no blocking errors
+    enabled = bool(run_name and run_name.strip()) and not has_blocking_error
     return summary, not enabled
 
 
