@@ -127,6 +127,39 @@ def _build_text(dataset, samples: list) -> str:
         "an open-source web-based platform for end-to-end 16S rRNA amplicon analysis."
     )
 
+    # References
+    refs = [
+        "Callahan BJ, McMurdie PJ, Rosen MJ, Han AW, Johnson AJA, Holmes SP. "
+        "DADA2: High-resolution sample inference from Illumina amplicon data. "
+        "Nature Methods. 2016;13(7):581-583.",
+
+        "Douglas GM, Maffei VJ, Zaneveld JR, Yurgel SN, Brown JR, Taylor CM, Huttenhower C, Langille MGI. "
+        "PICRUSt2 for prediction of metagenome functions. "
+        "Nature Biotechnology. 2020;38(6):685-688.",
+
+        "Katoh K, Standley DM. "
+        "MAFFT multiple sequence alignment software version 7: improvements in performance and usability. "
+        "Molecular Biology and Evolution. 2013;30(4):772-780.",
+
+        "Martin M. "
+        "Cutadapt removes adapter sequences from high-throughput sequencing reads. "
+        "EMBnet.journal. 2011;17(1):10-12.",
+
+        "Price MN, Dehal PS, Arkin AP. "
+        "FastTree 2 — approximately maximum-likelihood trees for large alignments. "
+        "PLoS ONE. 2010;5(3):e9490.",
+
+        "Quast C, Pruesse E, Yilmaz P, Gerber J, Schweer T, Yarza P, Peplies J, Glöckner FO. "
+        "The SILVA ribosomal RNA gene database project: improved data processing and web-based tools. "
+        "Nucleic Acids Research. 2013;41(D1):D590-D596.",
+
+        "Wang Q, Garrity GM, Tiedje JM, Cole JR. "
+        "Naive Bayesian classifier for rapid assignment of rRNA sequences into the new bacterial taxonomy. "
+        "Applied and Environmental Microbiology. 2007;73(16):5261-5267.",
+    ]
+
+    parts.append("\n\nReferences\n" + "\n".join(f"  {i+1}. {r}" for i, r in enumerate(refs)))
+
     return " ".join(parts)
 
 
