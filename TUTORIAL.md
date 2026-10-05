@@ -186,7 +186,7 @@ Alpha diversity measures within-sample diversity.
 2. Select your dataset and choose `source` as the grouping variable.
 3. The platform computes multiple metrics:
    - **Shannon entropy** — Accounts for both richness and evenness
-   - **Simpson index** — Probability that two randomly chosen individuals belong to different species
+   - **Simpson (1 − D)** — Gini-Simpson index; probability that two randomly chosen individuals belong to different species
    - **Observed ASVs** — Raw species richness
    - **Chao1 estimator** — Estimated total richness including unobserved species
    - **ACE estimator** — Abundance-based coverage estimator

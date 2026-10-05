@@ -39,10 +39,11 @@ ANALYSIS_OPTIONS = [
 
 ALPHA_METRICS = [
     {"label": "Shannon", "value": "shannon"},
-    {"label": "Simpson", "value": "simpson"},
-    {"label": "Observed OTUs", "value": "observed_otus"},
+    {"label": "Simpson (1 − D)", "value": "simpson"},
+    {"label": "Observed ASVs", "value": "observed_otus"},
     {"label": "Chao1", "value": "chao1"},
 ]
+ALPHA_METRIC_LABELS = {o["value"]: o["label"] for o in ALPHA_METRICS}
 
 DISTANCE_METRICS = [
     {"label": "Bray-Curtis", "value": "braycurtis"},
@@ -457,7 +458,7 @@ def _run_alpha_trajectories(count_df, meta_df, sid_col, subject_col, time_col, g
                 showlegend=True,
             ))
 
-    metric_label = metric.replace("_", " ").title()
+    metric_label = ALPHA_METRIC_LABELS.get(metric, metric.replace("_", " ").title())
     fig.update_layout(
         template="plotly_dark",
         title=f"{metric_label} Over Time",
@@ -510,7 +511,7 @@ def _run_volatility(count_df, meta_df, sid_col, subject_col, time_col, group_col
             jitter=0.3,
         ))
 
-    metric_label = metric.replace("_", " ").title()
+    metric_label = ALPHA_METRIC_LABELS.get(metric, metric.replace("_", " ").title())
     fig.update_layout(
         template="plotly_dark",
         title=f"Temporal Volatility ({metric_label})",

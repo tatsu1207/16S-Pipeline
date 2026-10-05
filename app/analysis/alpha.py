@@ -33,7 +33,7 @@ def compute_alpha(count_df: pd.DataFrame, metrics: list[str]) -> pd.DataFrame:
 
     for metric in metrics:
         if metric == "pielou_e":
-            # Pielou's evenness = H / ln(S), where H=Shannon, S=observed OTUs
+            # Pielou's evenness = H / ln(S), where H=Shannon, S=observed ASVs
             if "shannon" not in results:
                 h = alpha_diversity("shannon", counts_array, ids=sample_ids)
                 results["shannon"] = h

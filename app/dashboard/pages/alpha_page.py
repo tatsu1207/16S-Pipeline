@@ -26,11 +26,12 @@ from app.dashboard.app import app as dash_app
 
 METRIC_OPTIONS = [
     {"label": "Shannon", "value": "shannon"},
-    {"label": "Simpson", "value": "simpson"},
-    {"label": "Observed OTUs", "value": "observed_otus"},
+    {"label": "Simpson (1 − D)", "value": "simpson"},
+    {"label": "Observed ASVs", "value": "observed_otus"},
     {"label": "Chao1", "value": "chao1"},
     {"label": "Pielou's Evenness", "value": "pielou_e"},
 ]
+METRIC_LABELS = {o["value"]: o["label"] for o in METRIC_OPTIONS}
 
 
 def get_layout():
@@ -294,7 +295,7 @@ def on_run(n_clicks, biom_path, meta_json, sid_col, metrics, group_col):
         n_metrics = len(metrics)
         fig = make_subplots(
             rows=n_metrics, cols=1,
-            subplot_titles=[m.replace("_", " ").title() for m in metrics],
+            subplot_titles=[METRIC_LABELS.get(m, m) for m in metrics],
         )
 
         # Merge with groups
@@ -333,7 +334,7 @@ def on_run(n_clicks, biom_path, meta_json, sid_col, metrics, group_col):
         pairwise_rows = []
         for metric in metrics:
             stats = run_alpha_stats(diversity_df, meta_df, sid_col, group_col, metric)
-            label = metric.replace("_", " ").title()
+            label = METRIC_LABELS.get(metric, metric)
             stats_rows.append({
                 "Metric": label,
                 "Kruskal-Wallis H": f"{stats['kruskal_H']:.3f}" if stats["kruskal_H"] is not None else "N/A",

@@ -223,7 +223,7 @@ def _add_alpha_section(pdf: FPDF, count_df, meta_df, sid_col, group_col):
         "shannon": "Shannon Index",
         "observed_otus": "Observed ASVs",
         "chao1": "Chao1",
-        "simpson": "Simpson Index",
+        "simpson": "Simpson (1 − D)",
     }
 
     for ax, metric in zip(axes.flat, metrics):

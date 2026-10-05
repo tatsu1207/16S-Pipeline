@@ -16,7 +16,7 @@ A web-based tool for processing, managing, and visualizing 16S rRNA amplicon seq
 
 **Analysis capabilities:**
 
-- **Alpha diversity** -- Shannon, Simpson, observed OTUs with Kruskal-Wallis / Mann-Whitney tests
+- **Alpha diversity** -- Shannon, Simpson, observed ASVs with Kruskal-Wallis / Mann-Whitney tests
 - **Beta diversity** -- Bray-Curtis / Jaccard distance, PCoA, NMDS, PERMANOVA (pairwise + global)
 - **Taxonomy** -- Stacked bar plots at any taxonomic level
 - **Differential abundance** -- 5 tools: ALDEx2, DESeq2, ANCOM-BC2, LinDA, MaAsLin2; all-pairwise mode; volcano plots
