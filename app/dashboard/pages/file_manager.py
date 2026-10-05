@@ -11,6 +11,7 @@ import dash_bootstrap_components as dbc
 import dash_uploader as du
 import pandas as pd
 from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
+from sqlalchemy import and_, or_
 
 from app.config import UPLOAD_DIR
 from app.dashboard.app import app as dash_app
@@ -274,6 +275,30 @@ def _avg_read_length(fastq_path: Path, n_reads: int = 200) -> int | None:
         return None
 
 
+def _row_key(upload_id, sample_name):
+    """Checkbox key for one table row. The same sample name can exist in
+    several uploads, so a row is identified by both."""
+    return f"{upload_id}:{sample_name}"
+
+
+def _parse_row_keys(keys):
+    """Turn checkbox keys back into (upload_id, sample_name) pairs."""
+    pairs = []
+    for k in keys or []:
+        uid, _, name = str(k).partition(":")
+        if uid.isdigit() and name:
+            pairs.append((int(uid), name))
+    return pairs
+
+
+def _match_rows(model, pairs):
+    """SQL filter selecting rows of ``model`` that belong to the given pairs."""
+    return or_(*(
+        and_(model.upload_id == uid, model.sample_name == name)
+        for uid, name in pairs
+    ))
+
+
 def _build_files_table(sort_by="sample_name", filters=None, ascending=True, checked_samples=None):
     """Build a sample-level table of all registered FASTQ files with metadata."""
     if filters is None:
@@ -374,6 +399,7 @@ def _build_files_table(sort_by="sample_name", filters=None, ascending=True, chec
             study_val = info["study"] or study_by_sample.get(sample_name, "")
 
             sample_rows.append({
+                "key": _row_key(upload_id, sample_name),
                 "sample_name": display_name,
                 "direction": direction,
                 "file_links": file_links,
@@ -432,7 +458,7 @@ def _build_files_table(sort_by="sample_name", filters=None, ascending=True, chec
         for r in sample_rows:
             date_str = r["date"].strftime("%Y-%m-%d") if r["date"] else ""
             reads_str = f"{r['total_reads']:,}" if r["total_reads"] else "—"
-            is_checked = r["sample_name"] in checked_samples
+            is_checked = r["key"] in checked_samples
             pd_val = r["primers_detected"]
             if pd_val is True:
                 primers_badge = dbc.Badge("Yes", color="success")
@@ -445,7 +471,7 @@ def _build_files_table(sort_by="sample_name", filters=None, ascending=True, chec
                     [
                         html.Td(
                             dbc.Checkbox(
-                                id={"type": "fm-check", "index": r["sample_name"]},
+                                id={"type": "fm-check", "index": r["key"]},
                                 value=is_checked,
                             ),
                             style={"width": "30px"},
@@ -1133,8 +1159,18 @@ def on_delete_click(n_clicks, checked):
     """Show a confirmation dialog before deleting."""
     if not n_clicks or not checked:
         return False, ""
-    n = len(checked)
-    names = ", ".join(sorted(checked)[:10])
+    pairs = _parse_row_keys(checked)
+    n = len(pairs)
+    if not n:
+        return False, ""
+    name_counts = defaultdict(int)
+    for _uid, name in pairs:
+        name_counts[name] += 1
+    labels = sorted(
+        f"{name} (upload #{uid})" if name_counts[name] > 1 else name
+        for uid, name in pairs
+    )
+    names = ", ".join(labels[:10])
     suffix = f"... and {n - 10} more" if n > 10 else ""
     return True, (
         f"Permanently delete {n} sample(s) and their FASTQ files?\n\n"
@@ -1159,26 +1195,36 @@ def on_delete_confirmed(submit_n_clicks, checked, trigger):
     if not submit_n_clicks or not checked:
         return no_update, no_update
 
-    checked_set = set(checked)
+    pairs = _parse_row_keys(checked)
+    if not pairs:
+        return no_update, no_update
     db = SessionLocal()
     try:
-        # Find all FastqFile records for checked samples
+        # Find the FastqFile records of the checked (upload, sample) rows
         fastq_records = (
             db.query(FastqFile)
-            .filter(FastqFile.sample_name.in_(checked_set))
+            .filter(_match_rows(FastqFile, pairs))
             .all()
         )
         affected_upload_ids = set()
         for ff in fastq_records:
             affected_upload_ids.add(ff.upload_id)
-            # Delete actual file from disk
-            p = Path(ff.file_path)
-            p.unlink(missing_ok=True)
             db.delete(ff)
+        db.flush()
+
+        # Delete files from disk unless another record still points to them
+        for ff in fastq_records:
+            still_used = (
+                db.query(FastqFile)
+                .filter(FastqFile.file_path == ff.file_path)
+                .count()
+            )
+            if not still_used:
+                Path(ff.file_path).unlink(missing_ok=True)
 
         # Delete UploadMetadata rows for these samples
         db.query(UploadMetadata).filter(
-            UploadMetadata.sample_name.in_(checked_set)
+            _match_rows(UploadMetadata, pairs)
         ).delete(synchronize_session="fetch")
 
         db.flush()
@@ -1219,12 +1265,14 @@ def on_dl_meta_selected(n_clicks, checked):
     if not n_clicks or not checked:
         return no_update
 
-    checked_set = set(checked)
+    pairs = _parse_row_keys(checked)
+    if not pairs:
+        return no_update
     db = SessionLocal()
     try:
         rows = (
             db.query(UploadMetadata)
-            .filter(UploadMetadata.sample_name.in_(checked_set))
+            .filter(_match_rows(UploadMetadata, pairs))
             .order_by(UploadMetadata.sample_name)
             .all()
         )
