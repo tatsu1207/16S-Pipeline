@@ -17,6 +17,24 @@ LEVEL_MAP = {
     "Species": 6,
 }
 
+_MISSING = ("", "NA", "nan", "None")
+
+
+def taxon_label(ranks: list, level_idx: int) -> str:
+    """Name of the taxon at ``level_idx``, or "Unassigned".
+
+    Species are shown as binomials ("Bacillus simplex"), since the species
+    rank only stores the epithet.
+    """
+    if not ranks or level_idx >= len(ranks) or ranks[level_idx] in _MISSING + (None,):
+        return "Unassigned"
+    name = str(ranks[level_idx])
+    if level_idx == LEVEL_MAP["Species"]:
+        genus = ranks[LEVEL_MAP["Genus"]]
+        if genus not in _MISSING + (None,) and not name.startswith(f"{genus} "):
+            name = f"{genus} {name}"
+    return name
+
 
 def aggregate_taxonomy(
     biom_path: str, level: str, top_n: int = 20
@@ -42,10 +60,7 @@ def aggregate_taxonomy(
             ranks = md["taxonomy"]
             if isinstance(ranks, str):
                 ranks = [r.strip() for r in ranks.split(";")]
-            if ranks and level_idx < len(ranks) and ranks[level_idx]:
-                tax_map[obs_id] = ranks[level_idx]
-            else:
-                tax_map[obs_id] = "Unassigned"
+            tax_map[obs_id] = taxon_label(ranks, level_idx)
         else:
             tax_map[obs_id] = "Unassigned"
 
@@ -141,10 +156,7 @@ def aggregate_counts_by_level(biom_path: str, level: str) -> pd.DataFrame:
             ranks = md["taxonomy"]
             if isinstance(ranks, str):
                 ranks = [r.strip() for r in ranks.split(";")]
-            if ranks and level_idx < len(ranks) and ranks[level_idx]:
-                tax_map[obs_id] = ranks[level_idx]
-            else:
-                tax_map[obs_id] = "Unassigned"
+            tax_map[obs_id] = taxon_label(ranks, level_idx)
         else:
             tax_map[obs_id] = "Unassigned"
 
