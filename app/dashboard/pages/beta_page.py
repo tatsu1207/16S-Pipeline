@@ -121,7 +121,8 @@ def get_layout():
                         ),
 
                         dbc.Label("Color by", className="fw-bold"),
-                        dbc.Select(id="bd-color-col", placeholder="Select column...",
+                        dbc.Select(id="bd-color-col",
+                                   placeholder="Same as PERMANOVA group",
                                    className="mb-2"),
 
                         dbc.Label("Shape by (optional)", className="fw-bold"),
@@ -131,6 +132,10 @@ def get_layout():
                         dbc.Label("PERMANOVA Group Column", className="fw-bold"),
                         dbc.Select(id="bd-group-col", placeholder="Select column...",
                                    className="mb-3"),
+
+                        dbc.Switch(id="bd-show-ellipses",
+                                   label="Show 95% confidence ellipses",
+                                   value=True, className="mb-3"),
 
                         dbc.Button("Run Analysis", id="bd-btn-run", color="primary",
                                    className="w-100", disabled=True),
@@ -161,6 +166,7 @@ def get_layout():
                 html.Div(id="bd-permanova-table"),
                 dcc.Graph(id="bd-scatter", style=HIDDEN,
                          config={"toImageButtonOptions": {"format": "svg", "scale": 2}}),
+                html.Div(id="bd-ellipse-note", className="small text-muted"),
             ], md=8),
         ]),
     ], fluid=True)
@@ -323,6 +329,7 @@ def on_input_change(biom_contents, pipeline_value, meta_contents,
     Output("bd-progress-bar", "value", allow_duplicate=True),
     Output("bd-progress-bar", "label", allow_duplicate=True),
     Output("bd-progress-log", "children", allow_duplicate=True),
+    Output("bd-ellipse-note", "children"),
     Input("bd-btn-run", "n_clicks"),
     State("bd-biom-path", "data"),
     State("bd-meta-store", "data"),
@@ -332,11 +339,12 @@ def on_input_change(biom_contents, pipeline_value, meta_contents,
     State("bd-color-col", "value"),
     State("bd-shape-col", "value"),
     State("bd-group-col", "value"),
+    State("bd-show-ellipses", "value"),
     prevent_initial_call=True,
 )
 def on_run(n_clicks, biom_path, meta_json, sid_col, dist_metric, ord_method,
-           color_col, shape_col, group_col):
-    # Default outputs for early returns (13 outputs)
+           color_col, shape_col, group_col, show_ellipses):
+    # Default outputs for early returns (14 outputs)
     loading_done = ""
     no_fig = no_update
     no_style = no_update
@@ -356,7 +364,7 @@ def on_run(n_clicks, biom_path, meta_json, sid_col, dist_metric, ord_method,
         return (loading_done, no_fig, no_style, no_perm,
                 dbc.Alert("Please fill required inputs.", color="warning"),
                 no_job, poll_off, progress_hide, btn_enabled,
-                pairwise_clear, bar_zero, bar_label, log_clear)
+                pairwise_clear, bar_zero, bar_label, log_clear, "")
 
     try:
         meta_df = pd.read_json(io.StringIO(meta_json), orient="split")
@@ -368,7 +376,7 @@ def on_run(n_clicks, biom_path, meta_json, sid_col, dist_metric, ord_method,
             return (loading_done, no_fig, no_style, no_perm,
                     dbc.Alert("Need at least 3 matched samples.", color="danger"),
                     no_job, poll_off, progress_hide, btn_enabled,
-                    pairwise_clear, bar_zero, bar_label, log_clear)
+                    pairwise_clear, bar_zero, bar_label, log_clear, "")
 
         count_df = biom_to_count_df(biom_path)
         matched = match_info["matched"]
@@ -391,6 +399,9 @@ def on_run(n_clicks, biom_path, meta_json, sid_col, dist_metric, ord_method,
 
         coords.index = coords.index.astype(str)
         meta_indexed = meta_df.set_index(meta_df[sid_col].astype(str))
+
+        # Fall back to the PERMANOVA group so points and ellipses follow it
+        color_col = color_col or group_col
 
         if color_col:
             coords["color"] = coords.index.map(meta_indexed[color_col])
@@ -432,9 +443,16 @@ def on_run(n_clicks, biom_path, meta_json, sid_col, dist_metric, ord_method,
                 ))
 
         # ── Confidence ellipses ──
+        ellipse_note = ""
         if color_col:
             group_values = coords.index.map(meta_indexed[color_col])
             ellipses = compute_confidence_ellipse(coords, group_values)
+            group_sizes = pd.Series(group_values).value_counts()
+            skipped = sorted(str(g) for g, n in group_sizes.items() if n < 3)
+            if skipped:
+                ellipse_note = (
+                    "No ellipse for groups with < 3 samples: " + ", ".join(skipped)
+                )
             for ell in ellipses:
                 grp = ell["group"]
                 c_idx = color_groups.index(grp) if grp in color_groups else 0
@@ -447,6 +465,8 @@ def on_run(n_clicks, biom_path, meta_json, sid_col, dist_metric, ord_method,
                     name=f"{grp} (95% CI)",
                     showlegend=False,
                     hoverinfo="skip",
+                    meta="ellipse",
+                    visible=bool(show_ellipses),
                 ))
 
         metric_label = "Bray-Curtis" if dist_metric == "braycurtis" else "Jaccard"
@@ -504,13 +524,14 @@ def on_run(n_clicks, biom_path, meta_json, sid_col, dist_metric, ord_method,
 
         return ("", fig, {"display": "block"}, perm_table, "",
                 job_id, poll_disabled, progress_style, btn_disabled,
-                "", 0, "", "Starting pairwise PERMANOVA..." if job_id else "")
+                "", 0, "", "Starting pairwise PERMANOVA..." if job_id else "",
+                ellipse_note)
 
     except Exception as e:
         return (loading_done, no_fig, no_style, no_perm,
                 dbc.Alert(f"Error: {e}\n{traceback.format_exc()}", color="danger"),
                 no_job, poll_off, progress_hide, btn_enabled,
-                pairwise_clear, bar_zero, bar_label, log_clear)
+                pairwise_clear, bar_zero, bar_label, log_clear, "")
 
 
 # ── Callback B: on_poll — progress updates for background pairwise ──────────
@@ -635,6 +656,23 @@ def on_settings_change(_color, _shape, _group, _dist, _ord, biom_path, meta_json
     if biom_path and meta_json:
         return False
     return True
+
+
+# ── Callback D: show/hide ellipses without re-running the analysis ──────────
+
+@dash_app.callback(
+    Output("bd-scatter", "figure", allow_duplicate=True),
+    Input("bd-show-ellipses", "value"),
+    State("bd-scatter", "figure"),
+    prevent_initial_call=True,
+)
+def on_toggle_ellipses(show, fig):
+    if not fig or not fig.get("data"):
+        return no_update
+    for trace in fig["data"]:
+        if trace.get("meta") == "ellipse":
+            trace["visible"] = bool(show)
+    return fig
 
 
 # ── Helper ──────────────────────────────────────────────────────────────────
