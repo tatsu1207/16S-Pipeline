@@ -57,15 +57,20 @@ lfc_col <- paste0("lfc_", opt$group_col, opt$test_group)
 p_col   <- paste0("p_", opt$group_col, opt$test_group)
 q_col   <- paste0("q_", opt$group_col, opt$test_group)
 
-# Handle column name variations
+# Fall back to the first non-intercept column if the exact name differs
+# (res also holds lfc_/p_/q_(Intercept), which must never be reported)
 all_cols <- colnames(res)
-lfc_match <- grep("^lfc_", all_cols, value=TRUE)[1]
-p_match   <- grep("^p_", all_cols, value=TRUE)[1]
-q_match   <- grep("^q_", all_cols, value=TRUE)[1]
-
-if (!is.na(lfc_match)) lfc_col <- lfc_match
-if (!is.na(p_match))   p_col   <- p_match
-if (!is.na(q_match))   q_col   <- q_match
+pick_col <- function(expected, prefix) {
+  if (expected %in% all_cols) return(expected)
+  cands <- grep(paste0("^", prefix), all_cols, value=TRUE)
+  cands <- cands[!grepl("Intercept", cands, fixed=TRUE)]
+  if (length(cands) == 0) stop("ANCOM-BC2 output has no '", prefix, "' column for the group effect")
+  cands[1]
+}
+lfc_col <- pick_col(lfc_col, "lfc_")
+p_col   <- pick_col(p_col, "p_")
+q_col   <- pick_col(q_col, "q_")
+cat("Using columns:", lfc_col, p_col, q_col, "\n", file=stderr())
 
 results <- data.frame(
   feature = res$taxon,
