@@ -114,7 +114,9 @@ RUN mkdir -p /opt/silva && \
     wget -q -O /opt/silva/silva_nr99_v138.1_train_set.fa.gz \
         "https://zenodo.org/record/4587955/files/silva_nr99_v138.1_train_set.fa.gz" && \
     wget -q -O /opt/silva/silva_species_assignment_v138.1.fa.gz \
-        "https://zenodo.org/record/4587955/files/silva_species_assignment_v138.1.fa.gz"
+        "https://zenodo.org/record/4587955/files/silva_species_assignment_v138.1.fa.gz" && \
+    wget -q -O /opt/silva/silva_nr99_v138.1_wSpecies_train_set.fa.gz \
+        "https://zenodo.org/record/4587955/files/silva_nr99_v138.1_wSpecies_train_set.fa.gz"
 
 # ── Copy application code ─────────────────────────────────────────────────
 COPY app/ /app/app/

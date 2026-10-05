@@ -80,11 +80,23 @@ def _build_text(dataset, samples: list) -> str:
     parts.append(dada2_text)
 
     # Taxonomy
-    parts.append(
-        "Taxonomy was assigned using the naive Bayesian classifier (Wang et al., 2007) "
-        "against the SILVA NR99 v138.1 reference database (Quast et al., 2013), "
-        "with species-level assignment via exact matching."
-    )
+    longread = dataset.platform in ("pacbio", "nanopore")
+    if longread:
+        parts.append(
+            "Taxonomy was assigned to species level using the naive Bayesian classifier "
+            "(Wang et al., 2007) against the SILVA NR99 v138.1 species-level training set "
+            "(Quast et al., 2013). Where an ASV matched a single species exactly in the "
+            "SILVA species-assignment database, that species took precedence. ASVs still "
+            "lacking a species were aligned against the same database with VSEARCH "
+            "(Rognes et al., 2016), and a species was assigned when all best hits at "
+            "\u226599% identity agreed on a single species within the assigned genus."
+        )
+    else:
+        parts.append(
+            "Taxonomy was assigned to genus level using the naive Bayesian classifier "
+            "(Wang et al., 2007) against the SILVA NR99 v138.1 reference database "
+            "(Quast et al., 2013)."
+        )
 
     # Phylogenetic tree
     parts.append(
@@ -152,6 +164,12 @@ def _build_text(dataset, samples: list) -> str:
         "Quast C, Pruesse E, Yilmaz P, Gerber J, Schweer T, Yarza P, Peplies J, Glöckner FO. "
         "The SILVA ribosomal RNA gene database project: improved data processing and web-based tools. "
         "Nucleic Acids Research. 2013;41(D1):D590-D596.",
+
+        *([
+            "Rognes T, Flouri T, Nichols B, Quince C, Mahé F. "
+            "VSEARCH: a versatile open source tool for metagenomics. "
+            "PeerJ. 2016;4:e2584.",
+        ] if longread else []),
 
         "Wang Q, Garrity GM, Tiedje JM, Cole JR. "
         "Naive Bayesian classifier for rapid assignment of rRNA sequences into the new bacterial taxonomy. "

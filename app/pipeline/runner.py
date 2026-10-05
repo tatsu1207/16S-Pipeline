@@ -1004,6 +1004,7 @@ def _run_pipeline(dataset_id: int, threads: int | None = None):
                 _save_pid_to_status(DATASET_DIR / str(dataset_id) / "status.json", proc.pid),
             ),
             skip_species=platform not in ("pacbio", "nanopore"),
+            longread=platform in ("pacbio", "nanopore"),
         )
 
         _check_cancel(dataset_id)

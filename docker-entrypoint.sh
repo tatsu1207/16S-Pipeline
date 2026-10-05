@@ -15,7 +15,8 @@ mkdir -p /app/data/uploads /app/data/datasets /app/data/combined \
     /app/data/sra_cache /app/data/references
 
 # ── Copy SILVA references from image into data volume if missing ─────────
-for ref in silva_nr99_v138.1_train_set.fa.gz silva_species_assignment_v138.1.fa.gz ecoli_16S.fasta; do
+for ref in silva_nr99_v138.1_train_set.fa.gz silva_species_assignment_v138.1.fa.gz \
+           silva_nr99_v138.1_wSpecies_train_set.fa.gz ecoli_16S.fasta; do
     if [ ! -f "/app/data/references/${ref}" ] && [ -f "/opt/silva/${ref}" ]; then
         echo "Copying ${ref} to data volume..."
         cp "/opt/silva/${ref}" "/app/data/references/${ref}"

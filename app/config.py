@@ -24,6 +24,9 @@ DATABASE_URL = f"sqlite:///{_DB_PATH}"
 # --- SILVA 138.1 ---
 SILVA_TRAIN_SET = REFERENCE_DIR / "silva_nr99_v138.1_train_set.fa.gz"
 SILVA_SPECIES = REFERENCE_DIR / "silva_species_assignment_v138.1.fa.gz"
+SILVA_SPECIES_TRAIN_SET = REFERENCE_DIR / "silva_nr99_v138.1_wSpecies_train_set.fa.gz"
+# Minimum identity for vsearch species fallback on full-length (long-read) ASVs
+LONGREAD_SPECIES_MIN_ID = 0.99
 
 # --- Conda ---
 CONDA_BASE = Path(os.environ.get("CONDA_BASE", Path.home() / "miniforge3"))
