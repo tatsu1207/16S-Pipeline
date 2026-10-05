@@ -12,7 +12,7 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 from dash import Input, Output, State, callback_context, dcc, html, no_update
 
-from app.analysis.diff_abundance import TOOL_LABELS, build_volcano
+from app.analysis.diff_abundance import TOOL_LABELS, build_volcano, significant_mask
 from app.analysis.kegg_aggregation import aggregate_ko_to_pathways, annotate_pathway_results
 from app.analysis.pathway_plots import (
     build_pathway_errorbar,
@@ -274,7 +274,7 @@ def _apply_filters(results_df, pval_thresh, effect_thresh, abund_thresh):
     """Apply filter criteria to results DataFrame. Returns filtered copy."""
     df = results_df.copy()
     if pval_thresh and "qvalue" in df.columns:
-        df = df[df["qvalue"] < float(pval_thresh)]
+        df = df[significant_mask(df, float(pval_thresh))]
     if effect_thresh and "effect" in df.columns:
         df = df[df["effect"].abs() >= float(effect_thresh)]
     if abund_thresh and "log2fc" in df.columns:
@@ -285,7 +285,7 @@ def _apply_filters(results_df, pval_thresh, effect_thresh, abund_thresh):
 def _build_results_table(filtered_df, n_total, pred_label):
     """Build summary alert, results table, and download button."""
     n_filtered = len(filtered_df)
-    n_sig = int((filtered_df["qvalue"] < 0.05).sum()) if "qvalue" in filtered_df.columns else 0
+    n_sig = int(significant_mask(filtered_df).sum())
     parts = [f"{pred_label} features: {n_filtered} shown"]
     if n_filtered < n_total:
         parts.append(f"(filtered from {n_total})")

@@ -4,7 +4,10 @@
 #
 # Standard interface: --counts, --metadata, --group_col, --ref_group,
 #                     --test_group, --output
-# Output: TSV with feature, log2fc, pvalue, qvalue
+# Output: TSV with feature, log2fc, effect, pvalue, qvalue
+#   --gamma adds scale uncertainty (ALDEx2 >= 1.36; Nixon et al. 2024), as
+#   the ALDEx2 authors now recommend: CLR alone assumes every sample has the
+#   same total microbial load. 0 = original CLR-only behaviour.
 # ============================================================================
 
 suppressPackageStartupMessages({
@@ -20,7 +23,9 @@ option_list <- list(
   make_option("--ref_group",  type="character", help="Reference group"),
   make_option("--test_group", type="character", help="Test group"),
   make_option("--output",     type="character", help="Output TSV path"),
-  make_option("--threads",    type="integer", default=1, help="Number of parallel cores")
+  make_option("--threads",    type="integer", default=1, help="Number of parallel cores"),
+  make_option("--gamma",      type="double", default=0.5,
+              help="Scale uncertainty (SD of log2 scale); 0 = none")
 )
 
 opt <- parse_args(OptionParser(option_list=option_list))
@@ -45,8 +50,9 @@ if (n_cores > 1) {
 } else {
   bp <- NULL
 }
+gamma <- if (opt$gamma > 0) opt$gamma else NULL
 aldex_out <- aldex(counts, conditions, mc.samples=128, test="t", effect=TRUE,
-                   verbose=FALSE, BPPARAM=bp)
+                   gamma=gamma, verbose=FALSE, BPPARAM=bp)
 
 # Build output
 results <- data.frame(

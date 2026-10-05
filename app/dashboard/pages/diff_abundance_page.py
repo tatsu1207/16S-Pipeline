@@ -17,6 +17,7 @@ from app.analysis.diff_abundance import (
     cancel_da_pairwise,
     read_da_pairwise_progress,
     run_pairwise_da_background,
+    significant_mask,
 )
 from app.analysis.taxonomy import LEVEL_MAP
 from app.analysis.shared import (
@@ -263,7 +264,7 @@ def _apply_da_filters(df, pval_raw_thresh, pval_thresh, lfc_thresh, effect_thres
     if pval_raw_thresh and "pvalue" in out.columns:
         out = out[out["pvalue"] < float(pval_raw_thresh)]
     if pval_thresh and "qvalue" in out.columns:
-        out = out[out["qvalue"] < float(pval_thresh)]
+        out = out[significant_mask(out, float(pval_thresh))]
     if lfc_thresh and "log2fc" in out.columns:
         out = out[out["log2fc"].abs() >= float(lfc_thresh)]
     if effect_thresh and "effect" in out.columns:
@@ -288,7 +289,7 @@ def _build_pairwise_results_filtered(records_df, tool_name, header_alert,
         filtered = _apply_da_filters(sub, pval_raw_thresh, pval_thresh,
                                      lfc_thresh, effect_thresh)
         n_feat = len(filtered)
-        n_sig = int((filtered["qvalue"] < 0.05).sum()) if "qvalue" in filtered.columns else 0
+        n_sig = int(significant_mask(filtered).sum())
         summary_rows.append({"Comparison": comp, "Shown": n_feat,
                              "Total": len(sub),
                              "Significant (q<0.05)": n_sig})

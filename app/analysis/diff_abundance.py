@@ -61,6 +61,21 @@ TOOL_LABELS = {
 }
 
 
+def significant_mask(df: pd.DataFrame, q_thresh: float = 0.05) -> pd.Series:
+    """Rows with q < q_thresh that also passed ANCOM-BC2's sensitivity analysis.
+
+    ANCOM-BC2 results carry a ``passed_ss`` column; its authors advise against
+    trusting a taxon with a significant q that fails the pseudocount
+    sensitivity check. Other tools have no such column and use q alone.
+    """
+    if "qvalue" not in df.columns:
+        return pd.Series(False, index=df.index)
+    mask = df["qvalue"] < q_thresh
+    if "passed_ss" in df.columns:
+        mask &= df["passed_ss"].map(lambda v: v is not False and str(v).upper() != "FALSE")
+    return mask
+
+
 def run_da_tool(
     tool: str,
     biom_path: str,
@@ -146,7 +161,7 @@ def build_volcano(
 
     # Classify significance
     df["sig"] = "Not significant"
-    sig_mask = (df["qvalue"] < q_thresh) & (df["log2fc"].abs() > lfc_thresh)
+    sig_mask = significant_mask(df, q_thresh) & (df["log2fc"].abs() > lfc_thresh)
     df.loc[sig_mask & (df["log2fc"] > 0), "sig"] = "Up"
     df.loc[sig_mask & (df["log2fc"] < 0), "sig"] = "Down"
 
@@ -272,7 +287,7 @@ def run_pairwise_da_background(
                 df["test_group"] = test
 
                 n_feat = len(df)
-                n_sig = int((df["qvalue"] < 0.05).sum()) if "qvalue" in df.columns else 0
+                n_sig = int(significant_mask(df).sum())
                 progress["log"].append(
                     f"[{i+1}/{total}] {label} — {n_feat} features, {n_sig} significant"
                 )

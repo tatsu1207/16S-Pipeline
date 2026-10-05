@@ -241,9 +241,9 @@ A key feature of 16S-Pipeline is the integration of five complementary different
 
 | Method | Approach | Characteristics |
 |--------|----------|-----------------|
-| **ALDEx2** | CLR transformation + Welch's t-test | Conservative, compositionally aware |
+| **ALDEx2** | CLR transformation with scale uncertainty (γ = 0.5) + Wilcoxon test | Conservative, compositionally aware |
 | **DESeq2** | Negative binomial GLM | Widely used, can be liberal with small n |
-| **ANCOM-BC2** | Bias-corrected log-linear model | Very conservative, especially at small n |
+| **ANCOM-BC2** | Bias-corrected log-linear model; taxa must also pass its pseudocount sensitivity analysis (`passed_ss`) | Very conservative, especially at small n |
 | **LinDA** | Linear models on log-transformed data | Balanced sensitivity |
 | **MaAsLin2** | Multivariable association | Handles complex designs |
 

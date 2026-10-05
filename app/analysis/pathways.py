@@ -302,7 +302,7 @@ def run_pathway_da_background(
     tool: str = "aldex2",
 ) -> None:
     """Spawn a background thread to run pathway DA."""
-    from app.analysis.diff_abundance import TOOL_LABELS
+    from app.analysis.diff_abundance import TOOL_LABELS, significant_mask
 
     tool_label = TOOL_LABELS.get(tool, tool)
 
@@ -320,7 +320,7 @@ def run_pathway_da_background(
             results_df = merge_descriptions(results_df, desc_df)
 
             n_total = len(results_df)
-            n_sig = int((results_df["qvalue"] < 0.05).sum()) if "qvalue" in results_df.columns else 0
+            n_sig = int(significant_mask(results_df).sum())
 
             _write_pathway_progress(job_id, {
                 "status": "complete",

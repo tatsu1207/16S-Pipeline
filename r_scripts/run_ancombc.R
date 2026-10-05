@@ -4,7 +4,10 @@
 #
 # Standard interface: --counts, --metadata, --group_col, --ref_group,
 #                     --test_group, --output
-# Output: TSV with feature, log2fc, pvalue, qvalue
+# Output: TSV with feature, log2fc, pvalue, qvalue, passed_ss
+#   passed_ss = ANCOM-BC2's pseudocount sensitivity analysis. The authors
+#   advise against trusting a taxon with q < alpha that fails it, so the
+#   app counts only taxa with q < alpha AND passed_ss as significant.
 # ============================================================================
 
 suppressPackageStartupMessages({
@@ -70,20 +73,22 @@ pick_col <- function(expected, prefix) {
 lfc_col <- pick_col(lfc_col, "lfc_")
 p_col   <- pick_col(p_col, "p_")
 q_col   <- pick_col(q_col, "q_")
-cat("Using columns:", lfc_col, p_col, q_col, "\n", file=stderr())
+ss_col  <- sub("^q_", "passed_ss_", q_col)
+cat("Using columns:", lfc_col, p_col, q_col, ss_col, "\n", file=stderr())
 
 results <- data.frame(
   feature = res$taxon,
   log2fc  = res[[lfc_col]] / log(2),  # ANCOM-BC uses natural log
   pvalue  = res[[p_col]],
   qvalue  = res[[q_col]],
+  passed_ss = if (ss_col %in% all_cols) as.logical(res[[ss_col]]) else TRUE,
   stringsAsFactors = FALSE
 )
 
 results <- results[order(results$qvalue), ]
 write.table(results, file=opt$output, sep="\t", row.names=FALSE, quote=FALSE)
 
-n_sig <- sum(results$qvalue < 0.05, na.rm=TRUE)
+n_sig <- sum(results$qvalue < 0.05 & results$passed_ss, na.rm=TRUE)
 cat(toJSON(list(
   status = "success",
   n_features = nrow(results),
