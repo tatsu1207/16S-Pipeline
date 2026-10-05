@@ -73,6 +73,12 @@ RUN mamba create -n analysis_16S --override-channels -c conda-forge -c bioconda 
     bioconductor-aldex2 bioconductor-microbiome r-optparse r-jsonlite -y && \
     mamba clean -afy
 
+# conda-forge's r-directlabels (needed by ALDEx2) is "noarch" but ships an
+# x86_64 directlabels.so, so ALDEx2 can't load on arm64. Rebuild it from CRAN
+# for the target architecture.
+RUN conda run -n analysis_16S Rscript -e \
+    "install.packages('directlabels', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')"
+
 # ── Conda environment 4: maaslin2_16S (MaAsLin2 + vegan + LinDA) ─────────
 # modeest (needed by LinDA) comes from CRAN below: conda-forge has no
 # linux-aarch64 build of its dependency r-stable. rmutil and fBasics are its

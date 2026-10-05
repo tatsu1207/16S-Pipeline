@@ -114,6 +114,11 @@ if [ "$CHECK_ONLY" -eq 0 ]; then
     require_env analysis_16S --override-channels -c conda-forge -c bioconda \
         bioconductor-phyloseq bioconductor-ancombc bioconductor-deseq2 \
         bioconductor-aldex2 bioconductor-microbiome r-optparse r-jsonlite
+    # conda-forge's "noarch" r-directlabels ships an x86_64 .so (see Dockerfile)
+    if [ "$(uname -m)" != "x86_64" ]; then
+        info "Rebuilding directlabels (CRAN) for $(uname -m)"
+        rscript analysis_16S "install.packages('directlabels', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock')"
+    fi
 
     # 4. maaslin2_16S — MaAsLin2, LinDA, vegan
     rc=0
