@@ -263,78 +263,7 @@ A key feature of 16S-Pipeline is the integration of five complementary different
 
 ---
 
-## Step 9: Correlation Heatmap
-
-Visualize pairwise correlations between taxa to identify co-occurring or mutually exclusive organisms.
-
-1. Click **Correlation Heatmap** in the left sidebar.
-2. Select your dataset.
-3. Choose the analysis mode:
-   - **Taxon-taxon**: Spearman correlations between the top-N most abundant taxa
-   - **Taxon-metadata**: Correlations between taxa and numeric metadata variables
-4. Set the number of top taxa to include (e.g., 30).
-5. Click **Run**. The heatmap displays pairwise Spearman correlation coefficients with significance indicators.
-
-> **Interpretation:** Strong positive correlations (red) suggest taxa that co-occur, while strong negative correlations (blue) suggest competitive or niche-partitioning relationships.
-
----
-
-## Step 10: Network Analysis
-
-Build microbial co-occurrence networks to visualize community interaction patterns.
-
-1. Click **Network Analysis** in the left sidebar.
-2. Select your dataset.
-3. Choose a correlation method:
-   - **SparCC**: Compositionally-aware correlation estimation (recommended for 16S data)
-   - **Spearman**: Standard rank correlation
-4. Set the **correlation threshold** (e.g., 0.3) — only edges above this threshold are shown.
-5. Set the number of top taxa to include.
-6. Click **Run**. An interactive force-directed network graph is displayed:
-   - **Node size** reflects mean relative abundance
-   - **Edge color** indicates positive (green) or negative (red) correlation
-   - **Edge width** scales with correlation strength
-
----
-
-## Step 11: Random Forest Classification
-
-Use machine learning to identify which taxa best discriminate between groups.
-
-1. Click **Random Forest** in the left sidebar.
-2. Select your dataset and choose `source` as the grouping variable.
-3. Adjust parameters:
-   - **Number of trees**: Default 500 (higher = more stable importances)
-   - **Top features**: Number of important taxa to display
-   - **CV folds**: Cross-validation folds (auto-adjusted to minimum class size)
-4. Click **Run**. The analysis produces:
-   - **Feature importance plot**: Bar chart of taxa ranked by Random Forest importance
-   - **Cross-validation accuracy**: Model performance estimate with stratified k-fold CV
-   - **Confusion matrix**: Classification performance per group
-
-> **Note:** With only 3 samples per group, cross-validation accuracy will be limited. Larger sample sizes yield more reliable feature importance rankings.
-
----
-
-## Step 12: Association Biplot
-
-Constrained ordination methods (db-RDA and CCA) link community composition to environmental or experimental variables.
-
-1. Click **Association Biplot** in the left sidebar.
-2. Select your dataset and upload metadata with numeric environmental variables.
-3. Choose a method:
-   - **db-RDA** (distance-based Redundancy Analysis): Works with any distance metric, suitable for abundance data
-   - **CCA** (Canonical Correspondence Analysis): Chi-square-based, designed for count data with unimodal species responses
-4. Select the environmental variables to use as constraints.
-5. Choose a grouping variable for sample coloring.
-6. Click **Run**. The biplot shows:
-   - **Sample scores**: Points positioned by constrained ordination axes
-   - **Environmental vectors**: Arrows showing the direction and strength of each constraining variable
-   - **Proportion explained**: Variance in community composition explained by the constrained axes
-
----
-
-## Step 13: Longitudinal Analysis
+## Step 9: Longitudinal Analysis
 
 Analyze microbiome changes over time with repeated measures. This uses the `subject` and `timepoint` columns in the test metadata.
 
@@ -359,7 +288,7 @@ Analyze microbiome changes over time with repeated measures. This uses the `subj
 
 ---
 
-## Step 14: Functional Prediction with PICRUSt2
+## Step 10: Functional Prediction with PICRUSt2
 
 PICRUSt2 predicts functional potential (metabolic pathways, enzyme abundances) from 16S ASV data.
 
@@ -372,7 +301,7 @@ PICRUSt2 predicts functional potential (metabolic pathways, enzyme abundances) f
 
 ---
 
-## Step 15: Pathway and KEGG Map Analysis
+## Step 11: Pathway and KEGG Map Analysis
 
 Once PICRUSt2 results are available, you can perform functional differential abundance analysis.
 
@@ -404,7 +333,7 @@ Once PICRUSt2 results are available, you can perform functional differential abu
 
 ---
 
-## Step 16: Generate a PDF Report
+## Step 12: Generate a PDF Report
 
 1. Click **Analysis Report** in the left sidebar.
 2. Select your dataset.
@@ -464,10 +393,6 @@ Each dataset is auto-detected and processed with platform-appropriate parameters
 - **KEGG Pathway Maps**: Interactive visualization of predicted KO/EC numbers mapped onto KEGG pathway diagrams
 
 ### Advanced Statistical Analysis
-- **Correlation Heatmap**: Spearman correlations between top taxa or between taxa and numeric metadata
-- **Network Analysis**: Co-occurrence networks using SparCC or Spearman with interactive force-directed visualization
-- **Random Forest**: Machine learning classification to identify discriminant taxa between groups
-- **Association Biplot**: Constrained ordination (db-RDA, CCA) linking community composition to environmental variables
 - **Longitudinal Analysis**: Repeated-measures analysis with alpha trajectories, beta volatility, temporal DA (MaAsLin2 mixed-effects), and temporal heatmaps
 
 ### SRA Submission Helper
