@@ -191,7 +191,7 @@ Alpha diversity measures within-sample diversity.
    - **Chao1 estimator** — Estimated total richness including unobserved species
    - **ACE estimator** — Abundance-based coverage estimator
 
-4. Box plots are generated with Kruskal-Wallis test p-values and Dunn's post-hoc pairwise comparisons.
+4. Box plots are generated with Kruskal-Wallis test p-values, followed by pairwise Mann-Whitney U tests between every pair of groups (Benjamini-Hochberg corrected q-values).
 5. Click the camera icon in the plot toolbar to save figures as SVG. Download the diversity table as CSV using the download button.
 
 > **Tip:** Plots are rendered with a dark background by default. To get white-background figures for publications, toggle the **Light/Dark** switch in the sidebar — all plots will update to white backgrounds, then use the camera icon to save.

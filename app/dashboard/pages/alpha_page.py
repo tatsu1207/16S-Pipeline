@@ -339,7 +339,7 @@ def on_run(n_clicks, biom_path, meta_json, sid_col, metrics, group_col):
                 "Metric": label,
                 "Kruskal-Wallis H": f"{stats['kruskal_H']:.3f}" if stats["kruskal_H"] is not None else "N/A",
                 "p-value": f"{stats['kruskal_p']:.4f}" if stats["kruskal_p"] is not None else "N/A",
-                "Significant": "Yes" if stats["kruskal_p"] and stats["kruskal_p"] < 0.05 else "No",
+                "Significant": "Yes" if stats["kruskal_p"] is not None and stats["kruskal_p"] < 0.05 else "No",
             })
             for pw in stats.get("pairwise", []):
                 pairwise_rows.append({

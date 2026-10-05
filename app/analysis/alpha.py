@@ -89,34 +89,34 @@ def run_alpha_stats(
 
     result = {"kruskal_H": float(h_stat), "kruskal_p": float(kw_p), "pairwise": []}
 
-    # Pairwise Mann-Whitney U with BH correction if significant
-    if kw_p < 0.05 and len(groups) >= 2:
-        from statsmodels.stats.multitest import multipletests
+    # Pairwise Mann-Whitney U with BH correction, regardless of the
+    # Kruskal-Wallis result
+    from statsmodels.stats.multitest import multipletests
 
-        pairs = []
-        p_values = []
-        for i in range(len(groups)):
-            for j in range(i + 1, len(groups)):
-                g1_vals = merged[merged["group"] == groups[i]][metric].values
-                g2_vals = merged[merged["group"] == groups[j]][metric].values
-                if len(g1_vals) > 0 and len(g2_vals) > 0:
-                    try:
-                        u_stat, p_val = mannwhitneyu(g1_vals, g2_vals, alternative="two-sided")
-                        pairs.append({
-                            "group1": groups[i],
-                            "group2": groups[j],
-                            "U": float(u_stat),
-                            "pvalue": float(p_val),
-                        })
-                        p_values.append(p_val)
-                    except ValueError:
-                        pass
+    pairs = []
+    p_values = []
+    for i in range(len(groups)):
+        for j in range(i + 1, len(groups)):
+            g1_vals = merged[merged["group"] == groups[i]][metric].values
+            g2_vals = merged[merged["group"] == groups[j]][metric].values
+            if len(g1_vals) > 0 and len(g2_vals) > 0:
+                try:
+                    u_stat, p_val = mannwhitneyu(g1_vals, g2_vals, alternative="two-sided")
+                    pairs.append({
+                        "group1": groups[i],
+                        "group2": groups[j],
+                        "U": float(u_stat),
+                        "pvalue": float(p_val),
+                    })
+                    p_values.append(p_val)
+                except ValueError:
+                    pass
 
-        if p_values:
-            _, q_values, _, _ = multipletests(p_values, method="fdr_bh")
-            for pair, qval in zip(pairs, q_values):
-                pair["qvalue"] = float(qval)
+    if p_values:
+        _, q_values, _, _ = multipletests(p_values, method="fdr_bh")
+        for pair, qval in zip(pairs, q_values):
+            pair["qvalue"] = float(qval)
 
-        result["pairwise"] = pairs
+    result["pairwise"] = pairs
 
     return result
