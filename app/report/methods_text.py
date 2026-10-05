@@ -132,6 +132,32 @@ def _build_text(dataset, samples: list) -> str:
             "of sequenced genomes."
         )
 
+    # Differential abundance. Which tools a user ran isn't recorded, so all
+    # five are described one sentence each for the user to trim.
+    da_text = (
+        "\n\nDifferential abundance between groups was tested on raw counts with "
+        "up to five complementary methods. ALDEx2 (Fernandes et al., 2014) was run "
+        "with 128 Monte Carlo Dirichlet instances and a centred log-ratio "
+        "transformation with scale uncertainty (\u03b3 = 0.5; Nixon et al., 2025); "
+        "significance was assessed with the Wilcoxon rank-sum test, and effect sizes "
+        "were reported. ANCOM-BC2 (Lin and Peddada, 2024) was run with default "
+        "settings, which exclude taxa present in fewer than 10% of samples; taxa were "
+        "considered differentially abundant only if they also passed the ANCOM-BC2 "
+        "pseudo-count sensitivity analysis. DESeq2 (Love et al., 2014) was run with "
+        "size factors estimated by the \u201cposcounts\u201d method and the Wald test. "
+        "LinDA (Zhou et al., 2022) was run with default settings. MaAsLin2 (Mallick "
+        "et al., 2021) was run with total-sum scaling, log transformation and a "
+        "linear model, excluding features present in fewer than 10% of samples."
+    )
+    if dataset.picrust_dir_path:
+        da_text += " The same methods were applied to predicted pathway abundances."
+    da_text += (
+        " For all methods, P values were adjusted with the Benjamini\u2013Hochberg "
+        "procedure (Benjamini and Hochberg, 1995), and features with an adjusted "
+        "P value (q) < 0.05 were considered significant."
+    )
+    parts.append(da_text)
+
     # Pipeline credit
     parts.append(
         "All analyses were performed using 16S-Pipeline "
@@ -141,6 +167,10 @@ def _build_text(dataset, samples: list) -> str:
 
     # References
     refs = [
+        "Benjamini Y, Hochberg Y. "
+        "Controlling the false discovery rate: a practical and powerful approach to multiple testing. "
+        "Journal of the Royal Statistical Society: Series B. 1995;57(1):289-300.",
+
         "Callahan BJ, McMurdie PJ, Rosen MJ, Han AW, Johnson AJA, Holmes SP. "
         "DADA2: High-resolution sample inference from Illumina amplicon data. "
         "Nature Methods. 2016;13(7):581-583.",
@@ -149,13 +179,36 @@ def _build_text(dataset, samples: list) -> str:
         "PICRUSt2 for prediction of metagenome functions. "
         "Nature Biotechnology. 2020;38(6):685-688.",
 
+        "Fernandes AD, Reid JN, Macklaim JM, McMurrough TA, Edgell DR, Gloor GB. "
+        "Unifying the analysis of high-throughput sequencing datasets: characterizing RNA-seq, "
+        "16S rRNA gene sequencing and selective growth experiments by compositional data analysis. "
+        "Microbiome. 2014;2:15.",
+
         "Katoh K, Standley DM. "
         "MAFFT multiple sequence alignment software version 7: improvements in performance and usability. "
         "Molecular Biology and Evolution. 2013;30(4):772-780.",
 
+        "Lin H, Peddada SD. "
+        "Multigroup analysis of compositions of microbiomes with covariate adjustments and repeated measures. "
+        "Nature Methods. 2024;21(1):83-91.",
+
+        "Love MI, Huber W, Anders S. "
+        "Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. "
+        "Genome Biology. 2014;15:550.",
+
+        "Mallick H, Rahnavard A, McIver LJ, Ma S, Zhang Y, Nguyen LH, Tickle TL, Weingart G, Ren B, "
+        "Schwager EH, Chatterjee S, Thompson KN, Wilkinson JE, Subramanian A, Lu Y, Waldron L, "
+        "Paulson JN, Franzosa EA, Bravo HC, Huttenhower C. "
+        "Multivariable association discovery in population-scale meta-omics studies. "
+        "PLoS Computational Biology. 2021;17(11):e1009442.",
+
         "Martin M. "
         "Cutadapt removes adapter sequences from high-throughput sequencing reads. "
         "EMBnet.journal. 2011;17(1):10-12.",
+
+        "Nixon MP, Gloor GB, Silverman JD. "
+        "Incorporating scale uncertainty in microbiome and gene expression analysis as an extension of normalization. "
+        "Genome Biology. 2025;26:139.",
 
         "Price MN, Dehal PS, Arkin AP. "
         "FastTree 2 — approximately maximum-likelihood trees for large alignments. "
@@ -174,6 +227,10 @@ def _build_text(dataset, samples: list) -> str:
         "Wang Q, Garrity GM, Tiedje JM, Cole JR. "
         "Naive Bayesian classifier for rapid assignment of rRNA sequences into the new bacterial taxonomy. "
         "Applied and Environmental Microbiology. 2007;73(16):5261-5267.",
+
+        "Zhou H, He K, Chen J, Zhang X. "
+        "LinDA: linear models for differential abundance analysis of microbiome compositional data. "
+        "Genome Biology. 2022;23:95.",
     ]
 
     parts.append("\n\nReferences\n" + "\n".join(f"  {i+1}. {r}" for i, r in enumerate(refs)))

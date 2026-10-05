@@ -569,6 +569,7 @@ def _sanitize_text(text: str) -> str:
         "\u00b1": "+/-", # plus-minus
         "\u2264": "<=",  # less-than-or-equal
         "\u2265": ">=",  # greater-than-or-equal
+        "\u03b3": "gamma",  # Greek gamma (ALDEx2 scale parameter)
     }
     for char, repl in replacements.items():
         text = text.replace(char, repl)
