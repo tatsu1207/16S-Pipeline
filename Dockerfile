@@ -70,22 +70,23 @@ RUN mamba create -n dada2_16S --override-channels -c conda-forge -c bioconda \
 # ── Conda environment 3: analysis_16S (R + DA tools) ──────────────────────
 RUN mamba create -n analysis_16S --override-channels -c conda-forge -c bioconda \
     bioconductor-phyloseq bioconductor-ancombc bioconductor-deseq2 \
-    bioconductor-aldex2 r-optparse r-jsonlite -y && \
+    bioconductor-aldex2 bioconductor-microbiome r-optparse r-jsonlite -y && \
     mamba clean -afy
 
 # ── Conda environment 4: maaslin2_16S (MaAsLin2 + vegan + LinDA) ─────────
 RUN mamba create -n maaslin2_16S --override-channels -c conda-forge -c bioconda \
-    bioconductor-maaslin2 r-optparse r-jsonlite -y && \
+    bioconductor-maaslin2 r-optparse r-jsonlite \
+    r-remotes r-modeest r-ggrepel r-lme4 r-foreach -y && \
     mamba clean -afy
 
 # Install vegan from CRAN
 RUN conda run -n maaslin2_16S Rscript -e \
     "install.packages('vegan', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock', Ncpus=4)"
 
-# Install LinDA from GitHub (retry on failure — GitHub API can be flaky)
+# Install LinDA from GitHub (retry on failure — GitHub API can be flaky).
+# Its dependencies come from conda above; a failed package install is only a
+# warning in R, so check that LinDA actually loads.
 RUN conda run -n maaslin2_16S Rscript -e " \
-    install.packages('remotes', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock'); \
-    install.packages('modeest', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock'); \
     tryCatch( \
         remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock'), \
         error = function(e) { \
@@ -93,7 +94,16 @@ RUN conda run -n maaslin2_16S Rscript -e " \
             Sys.sleep(10); \
             remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock') \
         } \
-    )"
+    ); \
+    if (!requireNamespace('LinDA', quietly=TRUE)) stop('LinDA failed to install')"
+
+# Fail the build if any differential abundance package cannot be loaded
+RUN conda run -n analysis_16S Rscript -e " \
+        for (p in c('ANCOMBC', 'microbiome', 'DESeq2', 'ALDEx2', 'phyloseq')) \
+            if (!requireNamespace(p, quietly=TRUE)) stop('missing R package: ', p)" && \
+    conda run -n maaslin2_16S Rscript -e " \
+        for (p in c('Maaslin2', 'LinDA', 'vegan')) \
+            if (!requireNamespace(p, quietly=TRUE)) stop('missing R package: ', p)"
 
 # ── Conda environment 5: picrust2_16S (optional) ────────────────────────────
 # PICRUSt2 may fail to install (no arm64 package, or solver issues).
