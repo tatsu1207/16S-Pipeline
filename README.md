@@ -19,7 +19,7 @@ A web-based tool for processing, managing, and visualizing 16S rRNA amplicon seq
 - **Alpha diversity** -- Shannon, Simpson, observed ASVs with Kruskal-Wallis / Mann-Whitney tests
 - **Beta diversity** -- Bray-Curtis / Jaccard distance, PCoA, NMDS, PERMANOVA (pairwise + global)
 - **Taxonomy** -- Stacked bar plots at any taxonomic level
-- **Differential abundance** -- 5 tools: ALDEx2, DESeq2, ANCOM-BC2, LinDA, MaAsLin2; all-pairwise mode; volcano plots
+- **Differential abundance** -- 5 tools: ALDEx2, DESeq2, ANCOM-BC2, LinDA, MaAsLin2; all-pairwise mode; volcano, errorbar and heatmap plots
 - **Pathway analysis** -- PICRUSt2 output analysis with multi-tool DA, KO-to-KEGG aggregation, errorbar/heatmap/PCA plots (ggpicrust2-inspired)
 - **KEGG Map** -- Targeted pathway inspection with DA-colored KEGG maps
 - **SRA Download** -- Fetch public datasets from NCBI SRA by accession

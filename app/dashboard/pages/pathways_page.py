@@ -282,6 +282,34 @@ def _apply_filters(results_df, pval_thresh, effect_thresh, abund_thresh):
     return df
 
 
+def _render_plot_tab(active_tab, filtered_df, filt_pval, counts_df, meta_df,
+                     sid_col, group_col, ref_group, test_group):
+    """Errorbar / heatmap of significant pathways, or the PCA overview."""
+    if active_tab == "tab-pca":
+        fig = build_pathway_pca(
+            counts_df, meta_df, sid_col, group_col, ref_group, test_group,
+        )
+        return dcc.Graph(figure=fig)
+
+    q_thresh = float(filt_pval) if filt_pval else 0.05
+    sig_df = filtered_df[significant_mask(filtered_df, q_thresh)]
+    if sig_df.empty:
+        return html.P(f"No pathways pass q < {q_thresh} and the current filters.",
+                      className="text-muted mt-3")
+
+    if active_tab == "tab-errorbar":
+        fig = build_pathway_errorbar(
+            sig_df, counts_df, meta_df, sid_col, group_col,
+            ref_group, test_group, top_n=20,
+        )
+    else:
+        fig = build_pathway_heatmap(
+            sig_df, counts_df, meta_df, sid_col, group_col,
+            top_n=30, cluster_rows=True, groups=[ref_group, test_group],
+        )
+    return dcc.Graph(figure=fig)
+
+
 def _build_results_table(filtered_df, n_total, pred_label):
     """Build summary alert, results table, and download button."""
     n_filtered = len(filtered_df)
@@ -779,26 +807,11 @@ def on_tab_switch(active_tab, csv_data, pred_label, counts_json, meta_json,
         return dbc.Alert(f"Error loading data: {e}", color="danger")
 
     try:
-        if active_tab == "tab-errorbar":
-            fig = build_pathway_errorbar(
-                filtered_df, counts_df, meta_df, sid_col, group_col,
-                ref_group, test_group, top_n=20,
+        if active_tab in ("tab-errorbar", "tab-heatmap", "tab-pca"):
+            return _render_plot_tab(
+                active_tab, filtered_df, filt_pval, counts_df, meta_df,
+                sid_col, group_col, ref_group, test_group,
             )
-            return dcc.Graph(figure=fig)
-
-        elif active_tab == "tab-heatmap":
-            fig = build_pathway_heatmap(
-                filtered_df, counts_df, meta_df, sid_col, group_col,
-                top_n=30, cluster_rows=True,
-            )
-            return dcc.Graph(figure=fig)
-
-        elif active_tab == "tab-pca":
-            fig = build_pathway_pca(
-                counts_df, meta_df, sid_col, group_col,
-                ref_group, test_group,
-            )
-            return dcc.Graph(figure=fig)
     except Exception as e:
         return dbc.Alert(f"Error building plot: {e}\n{traceback.format_exc()}", color="danger")
 
@@ -850,24 +863,11 @@ def on_filter_change(filt_pval, filt_effect, filt_abund, csv_data, pred_label,
             counts_df = pd.read_json(io.StringIO(counts_json), orient="split")
             meta_df = pd.read_json(io.StringIO(meta_json), orient="split")
 
-            if active_tab == "tab-errorbar":
-                fig = build_pathway_errorbar(
-                    filtered_df, counts_df, meta_df, sid_col, group_col,
-                    ref_group, test_group, top_n=20,
+            if active_tab in ("tab-errorbar", "tab-heatmap", "tab-pca"):
+                tab_content = _render_plot_tab(
+                    active_tab, filtered_df, filt_pval, counts_df, meta_df,
+                    sid_col, group_col, ref_group, test_group,
                 )
-                tab_content = dcc.Graph(figure=fig)
-            elif active_tab == "tab-heatmap":
-                fig = build_pathway_heatmap(
-                    filtered_df, counts_df, meta_df, sid_col, group_col,
-                    top_n=30, cluster_rows=True,
-                )
-                tab_content = dcc.Graph(figure=fig)
-            elif active_tab == "tab-pca":
-                fig = build_pathway_pca(
-                    counts_df, meta_df, sid_col, group_col,
-                    ref_group, test_group,
-                )
-                tab_content = dcc.Graph(figure=fig)
     except Exception:
         pass  # Keep existing tab content on error
 

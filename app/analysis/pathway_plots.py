@@ -1,7 +1,8 @@
 """
 MicrobiomeDash — ggpicrust2-inspired pathway visualizations.
 
-Provides errorbar, heatmap, and PCA plots for pathway DA results.
+Provides errorbar, heatmap, and PCA plots for pathway DA results. The
+errorbar and heatmap are also used for taxa on the Differential Abundance page.
 """
 import numpy as np
 import pandas as pd
@@ -24,6 +25,7 @@ def build_pathway_errorbar(
     test_group: str,
     top_n: int = 20,
     group_by_class: bool = False,
+    labels: dict | None = None,
 ) -> go.Figure:
     """Build a grouped errorbar + log2FC direction plot.
 
@@ -40,6 +42,8 @@ def build_pathway_errorbar(
         test_group: Test group value.
         top_n: Number of top significant features to show.
         group_by_class: If True, sort by pathway_class column.
+        labels: Optional feature -> display label map (default: feature
+            plus its description, if any).
     """
     if results_df.empty or "qvalue" not in results_df.columns:
         return go.Figure().update_layout(
@@ -83,8 +87,12 @@ def build_pathway_errorbar(
         )
 
     # Build display labels
+    label_map = labels or {}
     labels = []
     for f in present_features:
+        if f in label_map:
+            labels.append(label_map[f])
+            continue
         row = sig_df[sig_df["feature"] == f].iloc[0]
         desc = row.get("description", "")
         if desc and pd.notna(desc) and str(desc).strip():
@@ -185,9 +193,14 @@ def build_pathway_heatmap(
     group_col: str,
     top_n: int = 30,
     cluster_rows: bool = True,
+    groups: list[str] | None = None,
+    labels: dict | None = None,
+    title: str = "Pathway Abundance Heatmap (Z-score of relative abundance)",
 ) -> go.Figure:
-    """Build a z-score normalized heatmap of top significant pathways.
+    """Build a z-score normalized heatmap of top significant features.
 
+    Counts are converted to relative abundance per sample before z-scoring,
+    so differences in sequencing depth don't show up as abundance changes.
     Samples are ordered by group. Rows optionally clustered via
     scipy.cluster.hierarchy.linkage.
 
@@ -199,6 +212,9 @@ def build_pathway_heatmap(
         group_col: Group column in meta_df.
         top_n: Number of top significant features.
         cluster_rows: Whether to cluster rows hierarchically.
+        groups: If given, only samples in these groups are shown.
+        labels: Optional feature -> display label map.
+        title: Plot title.
     """
     if results_df.empty or "qvalue" not in results_df.columns:
         return go.Figure().update_layout(
@@ -219,12 +235,16 @@ def build_pathway_heatmap(
     # Order samples by group
     meta = meta_df.copy()
     meta[sid_col] = meta[sid_col].astype(str)
+    if groups is not None:
+        meta = meta[meta[group_col].astype(str).isin([str(g) for g in groups])]
     available_samples = [s for s in counts_df.columns if s in meta[sid_col].values]
     meta_sub = meta[meta[sid_col].isin(available_samples)].sort_values(group_col)
     ordered_samples = meta_sub[sid_col].tolist()
 
-    # Subset and z-score normalize
-    heat_data = counts_df.loc[features, ordered_samples].copy()
+    # Relative abundance per sample, then z-score per feature
+    col_sums = counts_df[ordered_samples].sum(axis=0).replace(0, 1)
+    rel_abund = counts_df[ordered_samples].div(col_sums, axis=1)
+    heat_data = rel_abund.loc[features].copy()
 
     # Z-score per row (feature)
     row_means = heat_data.mean(axis=1)
@@ -241,8 +261,12 @@ def build_pathway_heatmap(
             pass
 
     # Build labels
+    label_map = labels or {}
     y_labels = []
     for f in z_data.index:
+        if f in label_map:
+            y_labels.append(label_map[f])
+            continue
         match = sig_df[sig_df["feature"] == f]
         if not match.empty:
             desc = match.iloc[0].get("description", "")
@@ -271,7 +295,7 @@ def build_pathway_heatmap(
     height = max(500, 80 + n_features * 22)
 
     fig.update_layout(
-        title="Pathway Abundance Heatmap (Z-score normalized)",
+        title=title,
         template="plotly_dark",
         height=height,
         xaxis=dict(tickangle=45, tickfont=dict(size=9)),
@@ -417,7 +441,7 @@ def build_pathway_pca(
     pct2 = prop_explained[1] * 100
 
     fig.update_layout(
-        title="PCA of Pathway Abundances",
+        title="PCA of all pathway abundances (independent of DA results)",
         xaxis_title=f"PC1 ({pct1:.1f}%)",
         yaxis_title=f"PC2 ({pct2:.1f}%)",
         template="plotly_dark",

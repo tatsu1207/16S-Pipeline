@@ -255,6 +255,8 @@ A key feature of 16S-Pipeline is the integration of five complementary different
 
 5. Click **Run**. Each method produces:
    - A **volcano plot** showing effect size (x-axis) vs. significance (y-axis), with significant ASVs highlighted
+   - An **errorbar plot** of the significant taxa: mean relative abundance (± SD) in each group, next to their log2 fold change
+   - A **heatmap** of the significant taxa across samples (z-scored relative abundance), showing whether a difference holds in most samples or comes from a few
    - A **results table** with log-fold changes, p-values, and adjusted p-values
 
 6. The **Consensus** tab highlights ASVs detected as significant by multiple methods, providing a robust set of differentially abundant taxa.

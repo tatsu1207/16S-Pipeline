@@ -13,6 +13,7 @@ from dash import Input, Output, State, callback_context, dcc, html, no_update
 
 from app.analysis.diff_abundance import (
     TOOL_LABELS,
+    build_da_abundance_plots,
     build_volcano,
     cancel_da_pairwise,
     read_da_pairwise_progress,
@@ -60,6 +61,7 @@ def get_layout():
         dcc.Store(id="da-pairwise-job-id", storage_type="session"),
         dcc.Store(id="da-pairwise-csv"),
         dcc.Store(id="da-tool-store"),
+        dcc.Store(id="da-plot-ctx"),
         dcc.Interval(id="da-poll", interval=2000, disabled=True),
 
         dbc.Row([
@@ -272,9 +274,38 @@ def _apply_da_filters(df, pval_raw_thresh, pval_thresh, lfc_thresh, effect_thres
     return out
 
 
+def _comparison_plots(filtered, plot_ctx, tool_name, comp, q_thresh):
+    """Volcano, errorbar and heatmap tabs for one comparison."""
+    graph_cfg = {"toImageButtonOptions": {"format": "svg", "scale": 2}}
+    tabs = [dbc.Tab(dcc.Graph(figure=build_volcano(filtered, f"{tool_name} — {comp}"),
+                              config=graph_cfg), label="Volcano")]
+    if not plot_ctx:
+        return dbc.Tabs(tabs)
+
+    sig = filtered[significant_mask(filtered, q_thresh)]
+    if sig.empty:
+        note = html.P(f"No features pass q < {q_thresh} and the current filters.",
+                      className="text-muted mt-3")
+        tabs += [dbc.Tab(note, label="Errorbar"), dbc.Tab(note, label="Heatmap")]
+        return dbc.Tabs(tabs)
+
+    ref, test = str(sig["ref_group"].iloc[0]), str(sig["test_group"].iloc[0])
+    try:
+        errorbar, heatmap = build_da_abundance_plots(sig, plot_ctx, ref, test)
+        tabs += [
+            dbc.Tab(dcc.Graph(figure=errorbar, config=graph_cfg), label="Errorbar"),
+            dbc.Tab(dcc.Graph(figure=heatmap, config=graph_cfg), label="Heatmap"),
+        ]
+    except Exception as e:
+        tabs.append(dbc.Tab(dbc.Alert(f"Could not draw abundance plots: {e}",
+                                      color="warning", className="mt-3"),
+                            label="Errorbar / Heatmap"))
+    return dbc.Tabs(tabs)
+
+
 def _build_pairwise_results_filtered(records_df, tool_name, header_alert,
                                      pval_raw_thresh, pval_thresh, lfc_thresh,
-                                     effect_thresh):
+                                     effect_thresh, plot_ctx=None):
     """Build the combined results UI for pairwise comparisons with filters applied."""
     if records_df.empty:
         return header_alert
@@ -294,8 +325,9 @@ def _build_pairwise_results_filtered(records_df, tool_name, header_alert,
                              "Total": len(sub),
                              "Significant (q<0.05)": n_sig})
         if i < MAX_VOLCANOS:
-            fig = build_volcano(filtered, f"{tool_name} — {comp}")
-            accordion_items.append(dbc.AccordionItem(dcc.Graph(figure=fig), title=comp))
+            q_thresh = float(pval_thresh) if pval_thresh else 0.05
+            plots = _comparison_plots(filtered, plot_ctx, tool_name, comp, q_thresh)
+            accordion_items.append(dbc.AccordionItem(plots, title=comp))
 
     summary_df = pd.DataFrame(summary_rows)
     summary_table = dbc.Table.from_dataframe(
@@ -306,7 +338,7 @@ def _build_pairwise_results_filtered(records_df, tool_name, header_alert,
     volcano_note = ""
     if len(comparisons) > MAX_VOLCANOS:
         volcano_note = html.Small(
-            f"Showing volcano plots for first {MAX_VOLCANOS} of "
+            f"Showing plots for first {MAX_VOLCANOS} of "
             f"{len(comparisons)} comparisons.",
             className="text-muted",
         )
@@ -817,6 +849,7 @@ def on_run(n_clicks, biom_path, meta_json, sid_col, tool, group_col,
     Output("da-btn-cancel", "style", allow_duplicate=True),
     Output("da-progress-section", "style", allow_duplicate=True),
     Output("da-pairwise-job-id", "data", allow_duplicate=True),
+    Output("da-plot-ctx", "data"),
     Input("da-poll", "n_intervals"),
     State("da-pairwise-job-id", "data"),
     State("da-tool", "value"),
@@ -828,8 +861,8 @@ def on_run(n_clicks, biom_path, meta_json, sid_col, tool, group_col,
 )
 def on_poll(n_intervals, job_id, tool, filt_pval_raw, filt_pval, filt_lfc,
             filt_effect):
-    # 11 outputs
-    no_all = (no_update,) * 11
+    # 12 outputs
+    no_all = (no_update,) * 12
     if not job_id:
         return (no_update, no_update, no_update, True,
                 *no_all[4:])
@@ -846,8 +879,7 @@ def on_poll(n_intervals, job_id, tool, filt_pval_raw, filt_pval, filt_lfc,
     bar_label = f"{completed} of {total} comparisons"
 
     if status == "running":
-        return (pct, bar_label, log_text, False,
-                no_update, no_update, no_update, no_update, no_update, no_update, no_update)
+        return (pct, bar_label, log_text, False, *no_all[4:])
 
     # Terminal states: complete, cancelled, error — clear job_id from session
     # Use tool name from job progress (survives page reload) with radio button as fallback
@@ -855,6 +887,7 @@ def on_poll(n_intervals, job_id, tool, filt_pval_raw, filt_pval, filt_lfc,
     results_records = prog.get("results", [])
     records_df = pd.DataFrame(results_records) if results_records else pd.DataFrame()
     csv_data = _pairwise_csv(results_records)
+    plot_ctx = prog.get("plot_ctx")
 
     if status == "cancelled":
         msg = dbc.Alert(
@@ -864,36 +897,36 @@ def on_poll(n_intervals, job_id, tool, filt_pval_raw, filt_pval, filt_lfc,
         )
         results_ui = _build_pairwise_results_filtered(
             records_df, tool_name, msg, filt_pval_raw, filt_pval, filt_lfc,
-            filt_effect)
+            filt_effect, plot_ctx)
         return (pct, bar_label, log_text, True,
                 results_ui, csv_data, tool_name,
-                False, {"display": "none"}, {"display": "none"}, None)
+                False, {"display": "none"}, {"display": "none"}, None, plot_ctx)
 
     if status == "error":
         msg = dbc.Alert("Error during pairwise run. Check log for details.", color="danger")
         results_ui = _build_pairwise_results_filtered(
             records_df, tool_name, msg, filt_pval_raw, filt_pval, filt_lfc,
-            filt_effect)
+            filt_effect, plot_ctx)
         return (100, bar_label, log_text, True,
                 results_ui, csv_data, tool_name,
-                False, {"display": "none"}, {"display": "none"}, None)
+                False, {"display": "none"}, {"display": "none"}, None, plot_ctx)
 
     # Complete
     if records_df.empty:
         msg = dbc.Alert("All comparisons failed. Check log for details.", color="danger")
         return (100, bar_label, log_text, True,
                 msg, None, tool_name,
-                False, {"display": "none"}, {"display": "none"}, None)
+                False, {"display": "none"}, {"display": "none"}, None, plot_ctx)
 
     msg = dbc.Alert(
         f"{tool_name}: {total} pairwise comparisons complete.", color="success",
     )
     results_ui = _build_pairwise_results_filtered(
         records_df, tool_name, msg, filt_pval_raw, filt_pval, filt_lfc,
-        filt_effect)
+        filt_effect, plot_ctx)
     return (100, bar_label, log_text, True,
             results_ui, csv_data, tool_name,
-            False, {"display": "none"}, {"display": "none"}, None)
+            False, {"display": "none"}, {"display": "none"}, None, plot_ctx)
 
 
 def _pairwise_csv(records):
@@ -913,10 +946,11 @@ def _pairwise_csv(records):
     Input("da-filter-effect", "value"),
     State("da-pairwise-csv", "data"),
     State("da-tool-store", "data"),
+    State("da-plot-ctx", "data"),
     prevent_initial_call=True,
 )
 def on_da_filter_change(filt_pval_raw, filt_pval, filt_lfc, filt_effect,
-                        csv_data, tool_name):
+                        csv_data, tool_name, plot_ctx):
     if not csv_data or not tool_name:
         return no_update
 
@@ -927,7 +961,7 @@ def on_da_filter_change(filt_pval_raw, filt_pval, filt_lfc, filt_effect,
     msg = dbc.Alert(f"{tool_name}: results filtered.", color="success")
     return _build_pairwise_results_filtered(
         records_df, tool_name, msg, filt_pval_raw, filt_pval, filt_lfc,
-        filt_effect)
+        filt_effect, plot_ctx)
 
 
 # ── Cancel ───────────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 """
 MicrobiomeDash — Differential abundance analysis via R tools.
 """
+import functools
 import itertools
 import json
 import tempfile
@@ -15,7 +16,7 @@ from biom import load_table as _load_biom
 
 from app.analysis.r_runner import prepare_da_inputs, run_r_script
 from app.analysis.shared import biom_to_count_df
-from app.analysis.taxonomy import LEVEL_MAP, aggregate_counts_by_level
+from app.analysis.taxonomy import LEVEL_MAP, aggregate_counts_by_level, taxon_label
 
 _TAX_RANKS = [k for k, v in sorted(LEVEL_MAP.items(), key=lambda x: x[1]) if v >= 0]
 
@@ -198,6 +199,55 @@ def build_volcano(
     return fig
 
 
+# ── Errorbar / heatmap of significant taxa ──────────────────────────────────
+
+
+@functools.lru_cache(maxsize=4)
+def _cached_counts(biom_path: str, level: str, mtime: float) -> pd.DataFrame:
+    return aggregate_counts_by_level(biom_path, level)
+
+
+def _feature_labels(sig_df: pd.DataFrame) -> dict:
+    """ASV -> "<deepest assigned taxon> (ASV_n)"; taxa at other levels keep their name."""
+    if "Kingdom" not in sig_df.columns:
+        return {}
+    labels = {}
+    for _, row in sig_df.iterrows():
+        ranks = [row.get(r) if pd.notna(row.get(r)) else "" for r in _TAX_RANKS]
+        name = "Unassigned"
+        for idx in range(len(ranks) - 1, -1, -1):
+            name = taxon_label(ranks, idx)
+            if name != "Unassigned":
+                break
+        labels[row["feature"]] = f"{name} ({row['feature']})"
+    return labels
+
+
+def build_da_abundance_plots(
+    sig_df: pd.DataFrame, plot_ctx: dict, ref_group: str, test_group: str,
+) -> tuple[go.Figure, go.Figure]:
+    """Errorbar and heatmap of the significant features of one comparison."""
+    from app.analysis.pathway_plots import build_pathway_errorbar, build_pathway_heatmap
+
+    biom_path = plot_ctx["biom_path"]
+    counts_df = _cached_counts(biom_path, plot_ctx["level"], Path(biom_path).stat().st_mtime)
+    sample_groups = plot_ctx["sample_groups"]
+    meta_df = pd.DataFrame({"SampleID": list(sample_groups),
+                            "group": list(sample_groups.values())})
+    labels = _feature_labels(sig_df)
+
+    errorbar = build_pathway_errorbar(
+        sig_df, counts_df, meta_df, "SampleID", "group",
+        ref_group, test_group, top_n=20, labels=labels,
+    )
+    heatmap = build_pathway_heatmap(
+        sig_df, counts_df, meta_df, "SampleID", "group", top_n=30,
+        groups=[ref_group, test_group], labels=labels,
+        title="Significant taxa (Z-score of relative abundance)",
+    )
+    return errorbar, heatmap
+
+
 # ── All-pairwise background execution ───────────────────────────────────────
 
 
@@ -241,10 +291,17 @@ def run_pairwise_da_background(
     level: str = "ASV",
     threads: int | None = None,
 ) -> None:
-    """Spawn a background thread that runs DA for all C(n,2) group pairs."""
+    """Spawn a background thread that runs DA for all C(n,2) group pairs.
+
+    Groups are paired in the order given, so the first of each pair is the
+    reference (single-pair mode passes [ref, test]).
+    """
+    sid = meta_df[sid_col].astype(str)
+    in_run = sid.isin([str(s) for s in matched_samples])
+    sample_groups = dict(zip(sid[in_run], meta_df.loc[in_run, group_col].astype(str)))
 
     def _worker():
-        pairs = list(itertools.combinations(sorted(groups), 2))
+        pairs = list(itertools.combinations(groups, 2))
         total = len(pairs)
         tool_label = TOOL_LABELS.get(tool, tool)
         progress = {
@@ -255,6 +312,12 @@ def run_pairwise_da_background(
             "tool_label": tool_label,
             "log": [],
             "results": [],
+            # What the errorbar/heatmap need to redraw abundances later
+            "plot_ctx": {
+                "biom_path": biom_path,
+                "level": level or "ASV",
+                "sample_groups": sample_groups,
+            },
         }
         _write_da_progress(job_id, progress)
 
