@@ -263,32 +263,7 @@ A key feature of 16S-Pipeline is the integration of five complementary different
 
 ---
 
-## Step 9: Longitudinal Analysis
-
-Analyze microbiome changes over time with repeated measures. This uses the `subject` and `timepoint` columns in the test metadata.
-
-> **Note:** This step requires processing all three platform datasets (V4, V3-V4, PacBio) and combining them, or processing a single dataset where the metadata maps samples to subjects across timepoints. For this tutorial, we treat the three platforms as repeated measures from 6 subjects (S1–S6).
-
-1. Click **Longitudinal** in the left sidebar.
-2. Select your dataset and metadata.
-3. Configure the longitudinal settings:
-   - **Subject ID Column**: `subject`
-   - **Time Column**: `timepoint`
-   - **Group Column**: `source` (optional, for colored comparisons)
-
-4. **Alpha Trajectories**: Select "Alpha Trajectories" and a metric (e.g., Shannon). Click **Run**. This produces spaghetti plots showing each subject's diversity over time, with dashed group mean lines.
-
-5. **Beta Volatility**: Switch to "Beta Volatility" with Bray-Curtis distance. This shows within-subject temporal stability — how much each subject's microbiome changes between consecutive timepoints.
-
-6. **Temporal Differential Abundance**: Select "Temporal Diff. Abundance" at Genus level. This runs MaAsLin2 with a mixed-effects model (subject as random effect, time as fixed effect) to identify taxa that significantly change over time. Results are shown as a volcano plot.
-
-7. **Temporal Heatmap**: Select "Temporal Heatmap" at Genus level. This displays mean relative abundance of the top taxa at each timepoint.
-
-> **Tip:** Longitudinal analysis is most powerful with true repeated measures (same subjects sampled at multiple timepoints). The test data simulates this by mapping samples across platforms to subjects.
-
----
-
-## Step 10: Functional Prediction with PICRUSt2
+## Step 9: Functional Prediction with PICRUSt2
 
 PICRUSt2 predicts functional potential (metabolic pathways, enzyme abundances) from 16S ASV data.
 
@@ -301,7 +276,7 @@ PICRUSt2 predicts functional potential (metabolic pathways, enzyme abundances) f
 
 ---
 
-## Step 11: Pathway and KEGG Map Analysis
+## Step 10: Pathway and KEGG Map Analysis
 
 Once PICRUSt2 results are available, you can perform functional differential abundance analysis.
 
@@ -333,7 +308,7 @@ Once PICRUSt2 results are available, you can perform functional differential abu
 
 ---
 
-## Step 12: Generate a PDF Report
+## Step 11: Generate a PDF Report
 
 1. Click **Analysis Report** in the left sidebar.
 2. Select your dataset.
@@ -391,9 +366,6 @@ Each dataset is auto-detected and processed with platform-appropriate parameters
 - **PICRUSt2**: Predict functional potential from 16S data (requires 11+ GB RAM)
 - **Pathway Analysis**: Compare MetaCyc pathway abundances between groups using the same multi-method DA framework
 - **KEGG Pathway Maps**: Interactive visualization of predicted KO/EC numbers mapped onto KEGG pathway diagrams
-
-### Advanced Statistical Analysis
-- **Longitudinal Analysis**: Repeated-measures analysis with alpha trajectories, beta volatility, temporal DA (MaAsLin2 mixed-effects), and temporal heatmaps
 
 ### SRA Submission Helper
 - Generate NCBI SRA submission metadata spreadsheets from your registered files

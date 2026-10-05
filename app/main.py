@@ -35,7 +35,6 @@ import app.dashboard.pages.sample_tree_page  # noqa: F401
 import app.dashboard.pages.sra_download_page  # noqa: F401
 import app.dashboard.pages.sra_submit_page  # noqa: F401
 import app.dashboard.pages.report_page  # noqa: F401
-import app.dashboard.pages.longitudinal_page  # noqa: F401
 
 
 # ── FastAPI application ───────────────────────────────────────────────────────

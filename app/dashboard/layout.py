@@ -47,7 +47,6 @@ sidebar = html.Div(
                 _nav_link("Beta Diversity", "/beta"),
                 _nav_link("Taxonomy", "/taxonomy"),
                 _nav_link("Diff. Abundance", "/diff-abundance"),
-                _nav_link("Longitudinal", "/longitudinal"),
                 # Pathway Analysis
                 html.H6("PATHWAY ANALYSIS", className="text-muted mt-4 mb-2 px-3"),
                 _nav_link("PICRUSt2", "/picrust2"),
@@ -240,11 +239,6 @@ def render_page(pathname):
         from app.dashboard.pages.sra_submit_page import get_layout as sra_sub_layout
 
         return sra_sub_layout()
-
-    if pathname == "/longitudinal":
-        from app.dashboard.pages.longitudinal_page import get_layout as lo_layout
-
-        return lo_layout()
 
     if pathname == "/report":
         from app.dashboard.pages.report_page import get_layout as report_layout

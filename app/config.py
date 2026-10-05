@@ -51,7 +51,6 @@ _R_SCRIPT_ENV_MAP = {
     "run_linda.R": MAASLIN2_ENV_NAME,
     "run_maaslin2.R": MAASLIN2_ENV_NAME,
     "run_nmds.R": MAASLIN2_ENV_NAME,
-    "run_maaslin2_longitudinal.R": MAASLIN2_ENV_NAME,
 }
 
 
@@ -73,7 +72,7 @@ DEBUG = True
 # --- CPU ---
 CPU_COUNT = os.cpu_count() or 1
 MAX_THREADS = max(1, CPU_COUNT - 1)  # leave 1 core free
-# R tools (DA, longitudinal) start one R worker per thread; beyond ~32 the
+# R tools (DA) start one R worker per thread; beyond ~32 the
 # startup cost outweighs the gain, so this is only their default, not a cap.
 R_DEFAULT_THREADS = min(32, MAX_THREADS)
 
