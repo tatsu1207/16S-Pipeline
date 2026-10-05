@@ -74,14 +74,17 @@ RUN mamba create -n analysis_16S --override-channels -c conda-forge -c bioconda 
     mamba clean -afy
 
 # ── Conda environment 4: maaslin2_16S (MaAsLin2 + vegan + LinDA) ─────────
+# modeest (needed by LinDA) comes from CRAN below: conda-forge has no
+# linux-aarch64 build of its dependency r-stable. rmutil and fBasics are its
+# compiled dependencies that conda-forge does build for both architectures.
 RUN mamba create -n maaslin2_16S --override-channels -c conda-forge -c bioconda \
     bioconductor-maaslin2 r-optparse r-jsonlite \
-    r-remotes r-modeest r-ggrepel r-lme4 r-foreach -y && \
+    r-remotes r-ggrepel r-lme4 r-foreach r-rmutil r-fbasics -y && \
     mamba clean -afy
 
-# Install vegan from CRAN
+# Install vegan and modeest from CRAN
 RUN conda run -n maaslin2_16S Rscript -e \
-    "install.packages('vegan', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock', Ncpus=4)"
+    "install.packages(c('vegan', 'modeest'), repos='https://cloud.r-project.org', INSTALL_opts='--no-lock', Ncpus=4)"
 
 # Install LinDA from GitHub (retry on failure — GitHub API can be flaky).
 # Its dependencies come from conda above; a failed package install is only a
@@ -102,18 +105,25 @@ RUN conda run -n analysis_16S Rscript -e " \
         for (p in c('ANCOMBC', 'microbiome', 'DESeq2', 'ALDEx2', 'phyloseq')) \
             if (!requireNamespace(p, quietly=TRUE)) stop('missing R package: ', p)" && \
     conda run -n maaslin2_16S Rscript -e " \
-        for (p in c('Maaslin2', 'LinDA', 'vegan')) \
+        for (p in c('Maaslin2', 'LinDA', 'vegan', 'modeest')) \
             if (!requireNamespace(p, quietly=TRUE)) stop('missing R package: ', p)"
 
-# ── Conda environment 5: picrust2_16S (optional) ────────────────────────────
-# PICRUSt2 may fail to install (no arm64 package, or solver issues).
-# The app handles missing PICRUSt2 gracefully, so don't block the build.
+# ── Conda environment 5: picrust2_16S ───────────────────────────────────────
+# Required on amd64: fail the build rather than publish an image without it.
+# Its post-link script downloads from GitHub, which can fail transiently, so
+# retry a few times first. arm64 has no bioconda package, so skip it there
+# (the app handles missing PICRUSt2 gracefully).
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        mamba create -n picrust2_16S --override-channels -c conda-forge -c bioconda \
-            picrust2 -y && \
-        mamba clean -afy \
-        || echo "WARNING: PICRUSt2 install failed on amd64 — skipping"; \
+        for attempt in 1 2 3; do \
+            mamba create -n picrust2_16S --override-channels -c conda-forge -c bioconda \
+                picrust2 -y && break; \
+            echo "PICRUSt2 install attempt $attempt failed"; \
+            rm -rf /opt/conda/envs/picrust2_16S; sleep 30; \
+        done; \
+        mamba clean -afy; \
+        conda run -n picrust2_16S picrust2_pipeline.py --version \
+        || { echo "ERROR: PICRUSt2 install failed on amd64"; exit 1; }; \
     else \
         echo "Skipping PICRUSt2 on $TARGETARCH (no bioconda package available)"; \
     fi

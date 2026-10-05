@@ -119,11 +119,12 @@ if [ "$CHECK_ONLY" -eq 0 ]; then
     rc=0
     create_env maaslin2_16S --override-channels -c conda-forge -c bioconda \
         bioconductor-maaslin2 r-optparse r-jsonlite \
-        r-remotes r-modeest r-ggrepel r-lme4 r-foreach || rc=$?
+        r-remotes r-ggrepel r-lme4 r-foreach r-rmutil r-fbasics || rc=$?
     [ "$rc" -ne 2 ] || { echo "Failed to create maaslin2_16S"; exit 1; }
     if [ "$rc" -eq 0 ]; then
-        info "Installing vegan (CRAN) into maaslin2_16S"
-        rscript maaslin2_16S "install.packages('vegan', repos='https://cloud.r-project.org', INSTALL_opts='--no-lock', Ncpus=4)"
+        # modeest from CRAN: conda-forge has no linux-aarch64 r-stable (see Dockerfile)
+        info "Installing vegan and modeest (CRAN) into maaslin2_16S"
+        rscript maaslin2_16S "install.packages(c('vegan', 'modeest'), repos='https://cloud.r-project.org', INSTALL_opts='--no-lock', Ncpus=4)"
         info "Installing LinDA (GitHub) into maaslin2_16S"
         rscript maaslin2_16S "
             tryCatch(
