@@ -38,7 +38,7 @@ RUN mamba create -n microbiome_16S -c conda-forge python=3.11 -y && \
 
 # Install bioinformatics CLI tools
 RUN mamba install -n microbiome_16S --override-channels -c conda-forge -c bioconda \
-    fastqc cutadapt mafft fasttree bbmap sra-tools -y && \
+    fastqc cutadapt mafft fasttree bbmap sra-tools vsearch -y && \
     mamba clean -afy
 
 # Install Python packages via pip
