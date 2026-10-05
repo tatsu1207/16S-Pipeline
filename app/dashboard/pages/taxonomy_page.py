@@ -249,6 +249,12 @@ def on_input_change(biom_contents, pipeline_value, meta_contents,
     return biom_path, biom_status, meta_json, sid_col, meta_status, group_opts, btn_disabled
 
 
+def _no_heatmap(alert):
+    """Callback outputs for a failed run: hide the previous heatmap and its
+    download button so they aren't mistaken for the current result."""
+    return {}, {"display": "none"}, alert, None
+
+
 @dash_app.callback(
     Output("tx-heatmap", "figure"),
     Output("tx-heatmap", "style"),
@@ -266,27 +272,27 @@ def on_input_change(biom_contents, pipeline_value, meta_contents,
 )
 def on_run(n_clicks, biom_path, meta_json, sid_col, level, top_n, group_col, exclude_unassigned):
     if not biom_path:
-        return no_update, no_update, dbc.Alert("Please select a BIOM table.", color="warning"), no_update
+        return _no_heatmap(dbc.Alert("Please select a BIOM table.", color="warning"))
 
     try:
         top_n = int(top_n) if top_n else 20
         tax_df = aggregate_taxonomy(biom_path, level, top_n)
 
         if tax_df.empty:
-            return no_update, no_update, dbc.Alert(
+            return _no_heatmap(dbc.Alert(
                 "No taxonomy metadata found in this BIOM file. "
                 "Taxonomy is embedded during the pipeline's taxonomy assignment step.",
                 color="warning",
-            ), no_update
+            ))
 
         if exclude_unassigned:
             mask = ~tax_df.index.str.lower().str.contains("unassigned")
             tax_df = tax_df.loc[mask]
 
         if tax_df.empty:
-            return no_update, no_update, dbc.Alert(
+            return _no_heatmap(dbc.Alert(
                 "All taxa are unassigned at this level.", color="warning",
-            ), no_update
+            ))
 
         group_labels = []
         if meta_json and sid_col and group_col:
@@ -465,7 +471,7 @@ def on_run(n_clicks, biom_path, meta_json, sid_col, level, top_n, group_col, exc
         return fig, {"display": "block"}, "", dl
 
     except Exception as e:
-        return no_update, no_update, dbc.Alert(f"Error: {e}\n{traceback.format_exc()}", color="danger"), no_update
+        return _no_heatmap(dbc.Alert(f"Error: {e}\n{traceback.format_exc()}", color="danger"))
 
 
 @dash_app.callback(
