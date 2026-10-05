@@ -13,7 +13,10 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from app.config import DADA2_DEFAULTS, DATASET_DIR, LONGREAD_DADA2_DEFAULTS, PICRUST2_RUNS_DIR
+from app.config import (
+    DADA2_DEFAULTS, DATASET_DIR, LONGREAD_DADA2_DEFAULTS, PICRUST2_RUNS_DIR,
+    picrust2_default_threads,
+)
 
 # Active pipeline threads keyed by dataset_id (or "picrust2-{run_id}")
 _running_pipelines: dict[int | str, threading.Thread] = {}
@@ -442,7 +445,7 @@ def _run_picrust2_standalone(run_id: int, threads: int | None = None):
     from app.pipeline.picrust2 import run_picrust2
 
     if threads is None:
-        threads = DADA2_DEFAULTS["threads"]
+        threads = picrust2_default_threads()
 
     run_dir = PICRUST2_RUNS_DIR / str(run_id)
     run_dir.mkdir(parents=True, exist_ok=True)

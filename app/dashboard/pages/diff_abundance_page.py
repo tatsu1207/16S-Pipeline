@@ -30,8 +30,7 @@ from app.analysis.shared import (
 )
 from app.dashboard.app import app as dash_app
 
-import os as _os
-_MAX_CPUS = min(32, _os.cpu_count() or 1)
+from app.config import MAX_THREADS, R_DEFAULT_THREADS
 
 TOOL_OPTIONS = [
     {"label": "ANCOM-BC2", "value": "ancombc"},
@@ -115,9 +114,9 @@ def get_layout():
                             dbc.Input(
                                 id="da-cores",
                                 type="number",
-                                value=_MAX_CPUS,
+                                value=R_DEFAULT_THREADS,
                                 min=1,
-                                max=_MAX_CPUS,
+                                max=MAX_THREADS,
                                 className="mb-3",
                             ),
                         ]),

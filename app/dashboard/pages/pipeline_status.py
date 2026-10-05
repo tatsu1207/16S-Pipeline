@@ -1,7 +1,6 @@
 """
 MicrobiomeDash — Pipeline page: select samples, launch DADA2 pipeline.
 """
-import os
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -11,7 +10,7 @@ from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
 
 from app.dashboard.app import app as dash_app
 
-MAX_CPUS = min(32, os.cpu_count() or 1)
+from app.config import CPU_COUNT, MAX_THREADS
 
 STEPS = ["fastqc", "cutadapt", "dada2", "taxonomy"]
 STEPS_LONGREAD = ["fastqc", "dada2_longread", "taxonomy"]
@@ -121,13 +120,13 @@ layout = dbc.Container(
                                 dbc.Input(
                                     id="input-threads",
                                     type="number",
-                                    value=max(1, MAX_CPUS - 1),
+                                    value=MAX_THREADS,
                                     min=1,
-                                    max=MAX_CPUS,
+                                    max=MAX_THREADS,
                                     style={"maxWidth": "200px"},
                                 ),
                                 dbc.InputGroupText(
-                                    f"/ {MAX_CPUS} cores available",
+                                    f"/ {CPU_COUNT} cores available",
                                     className="text-muted small",
                                 ),
                             ],
@@ -916,8 +915,8 @@ def on_ps_check_all(select_all, ids):
 def update_default_threads(checked_samples):
     """Update threads to samples x 2 when selection changes."""
     if not checked_samples:
-        return max(1, MAX_CPUS - 1)
-    return min(len(checked_samples) * 2, max(1, MAX_CPUS - 1))
+        return MAX_THREADS
+    return min(len(checked_samples) * 2, MAX_THREADS)
 
 
 @dash_app.callback(
@@ -1034,7 +1033,7 @@ def on_start_pipeline(
     use_default_threads = False
     if threads_val is not None:
         try:
-            threads_override = max(1, min(int(threads_val), MAX_CPUS))
+            threads_override = max(1, min(int(threads_val), MAX_THREADS))
         except (ValueError, TypeError):
             return (
                 *no_change,
@@ -1168,7 +1167,7 @@ def on_start_pipeline(
     if threads_override is not None:
         threads = threads_override
     else:
-        threads = max(1, MAX_CPUS - 1)
+        threads = MAX_THREADS
 
     # ── 4. Launch pipeline ────────────────────────────────────────────
     from app.pipeline.runner import launch_pipeline

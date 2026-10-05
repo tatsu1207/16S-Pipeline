@@ -70,6 +70,23 @@ HOST = "0.0.0.0"
 PORT = int(os.environ.get("PORT", 7000 + os.getuid()))  # env override for Docker
 DEBUG = True
 
+# --- CPU ---
+CPU_COUNT = os.cpu_count() or 1
+MAX_THREADS = max(1, CPU_COUNT - 1)  # leave 1 core free
+# R tools (DA, longitudinal) start one R worker per thread; beyond ~32 the
+# startup cost outweighs the gain, so this is only their default, not a cap.
+R_DEFAULT_THREADS = min(32, MAX_THREADS)
+
+
+def picrust2_default_threads() -> int:
+    """RAM-aware PICRUSt2 default: each HSP worker uses ~2 GB."""
+    try:
+        total_ram_gb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / (1024 ** 3)
+    except (ValueError, OSError):
+        total_ram_gb = 8
+    return max(1, min(MAX_THREADS, int((total_ram_gb - 4) / 2)))
+
+
 # --- Pipeline defaults ---
 DADA2_DEFAULTS = {
     "trim_left_f": 0,
@@ -77,7 +94,7 @@ DADA2_DEFAULTS = {
     "trunc_len_f": 0,
     "trunc_len_r": 0,
     "min_overlap": 12,
-    "threads": min(32, max(1, os.cpu_count() - 1)),  # Cap at 32, leave 1 core free
+    "threads": MAX_THREADS,
 }
 
 LONGREAD_DADA2_DEFAULTS = {
@@ -85,5 +102,5 @@ LONGREAD_DADA2_DEFAULTS = {
     "max_len": 1600,
     "max_ee": 10,
     "band_size": 32,
-    "threads": min(32, max(1, os.cpu_count() - 1)),
+    "threads": MAX_THREADS,
 }

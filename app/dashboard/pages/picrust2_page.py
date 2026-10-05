@@ -6,17 +6,14 @@ of the main pipeline. Representative sequences are extracted automatically
 from the BIOM observation metadata.
 """
 import base64
-import os
 import time
 from pathlib import Path
 
 import dash_bootstrap_components as dbc
 from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
 
-from app.config import DATASET_DIR, PICRUST2_RUNS_DIR
+from app.config import DATASET_DIR, MAX_THREADS, PICRUST2_RUNS_DIR, picrust2_default_threads
 from app.dashboard.app import app as dash_app
-
-MAX_CPUS = min(32, os.cpu_count() or 1)
 
 
 _picrust2_available: bool | None = None
@@ -42,17 +39,7 @@ def _is_picrust2_available() -> bool:
         _picrust2_available = False
     return _picrust2_available
 
-# Compute RAM-aware default for hint text
-def _default_picrust2_threads() -> int:
-    """RAM-aware default: each PICRUSt2 HSP worker uses ~2 GB."""
-    try:
-        total_ram_gb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / (1024 ** 3)
-    except (ValueError, OSError):
-        total_ram_gb = 8
-    max_by_ram = max(1, int((total_ram_gb - 4) / 2))
-    return max(1, min(max(1, MAX_CPUS - 1), max_by_ram))
-
-_DEFAULT_THREADS = _default_picrust2_threads()
+_DEFAULT_THREADS = picrust2_default_threads()
 
 
 def _get_completed_datasets():
@@ -169,7 +156,7 @@ def get_layout():
                         style={"maxWidth": "120px"},
                     ),
                     dbc.InputGroupText(
-                        f"default = {_DEFAULT_THREADS} (RAM-aware, max {MAX_CPUS} cores)",
+                        f"default = {_DEFAULT_THREADS} (RAM-aware, max {MAX_THREADS} cores)",
                         className="text-muted small",
                     ),
                 ],

@@ -135,7 +135,7 @@ def run_longitudinal_da(
     Returns DataFrame with feature, coef, log2fc, pvalue, qvalue.
     """
     from app.analysis.taxonomy import aggregate_counts_by_level
-    from app.config import DADA2_DEFAULTS
+    from app.config import R_DEFAULT_THREADS
 
     count_df = biom_to_count_df(biom_path)
     if level != "ASV":
@@ -168,7 +168,7 @@ def run_longitudinal_da(
 
     output_path = str(tmp_dir / "results.tsv")
 
-    n_threads = threads or DADA2_DEFAULTS.get("threads", 1)
+    n_threads = threads or R_DEFAULT_THREADS
     args = {
         "counts": counts_path,
         "metadata": meta_path,
