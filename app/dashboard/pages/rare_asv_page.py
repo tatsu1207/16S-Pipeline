@@ -300,6 +300,7 @@ def rar_on_filter(n_clicks, biom_path, biom_filename, min_prev, min_abund):
     min_abund = int(min_abund) if min_abund is not None else 0
 
     try:
+        from app.analysis.shared import embed_sample_metadata
         from app.data_manager.rare_asv import filter_rare_asvs
 
         result = filter_rare_asvs(biom_path, min_prev, min_abund)
@@ -315,7 +316,7 @@ def rar_on_filter(n_clicks, biom_path, biom_filename, min_prev, min_abund):
         )
         return (
             dbc.Alert(msg, color="success"),
-            dcc.send_bytes(result["biom_bytes"], filename=filename),
+            dcc.send_bytes(embed_sample_metadata(result["biom_bytes"]), filename=filename),
         )
     except Exception as e:
         return dbc.Alert(f"Filter failed: {e}", color="danger"), no_update

@@ -259,8 +259,10 @@ def on_extract(n_clicks, biom_path, info, target_region):
 
     # Pipeline datasets use the dataset name; uploads keep the original filename stem
     original_stem = info.get("download_stem") or Path(biom_path).stem
+    from app.analysis.shared import embed_sample_metadata
+
     dl = dcc.send_bytes(
-        result["biom_bytes"],
+        embed_sample_metadata(result["biom_bytes"]),
         filename=f"{original_stem}_{target_region}.biom",
     )
 

@@ -1524,8 +1524,10 @@ def on_download_asv(n_clicks, dataset_id):
     if not biom_path.exists():
         return no_update
 
-    return dcc.send_file(
-        str(biom_path),
+    from app.analysis.shared import embed_sample_metadata
+
+    return dcc.send_bytes(
+        embed_sample_metadata(biom_path.read_bytes(), prefer_dataset_id=dataset_id),
         filename=_download_filename(ds, "asv_table", "biom"),
     )
 
@@ -1556,8 +1558,10 @@ def on_history_download(n_clicks_list):
     if not biom_path.exists():
         return no_update
 
-    return dcc.send_file(
-        str(biom_path),
+    from app.analysis.shared import embed_sample_metadata
+
+    return dcc.send_bytes(
+        embed_sample_metadata(biom_path.read_bytes(), prefer_dataset_id=dataset_id),
         filename=_download_filename(ds, "asv_table", "biom"),
     )
 

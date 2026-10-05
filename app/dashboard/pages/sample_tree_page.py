@@ -493,7 +493,9 @@ def st_download(n_clicks, biom_path, selected):
 
     n_removed = len(table.ids(axis="sample")) - len(keep)
     filename = f"filtered_{len(keep)}samples_excl{n_removed}.biom"
-    return dcc.send_bytes(biom_bytes, filename=filename)
+    from app.analysis.shared import embed_sample_metadata
+
+    return dcc.send_bytes(embed_sample_metadata(biom_bytes), filename=filename)
 
 
 # ── Callback 7: clear all session state ──────────────────────────────────────

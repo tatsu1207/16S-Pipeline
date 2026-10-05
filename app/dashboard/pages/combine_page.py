@@ -460,8 +460,10 @@ def on_combine(n_clicks, uploaded_files, pipeline_selected, merge_mode, tax_leve
                 ])
 
             stats = dbc.Alert(stats_children, color="success")
+            from app.analysis.shared import embed_sample_metadata
+
             dl = dcc.send_bytes(
-                result["biom_bytes"],
+                embed_sample_metadata(result["biom_bytes"]),
                 filename="combined_sequences.biom",
             )
 

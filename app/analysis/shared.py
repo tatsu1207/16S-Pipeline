@@ -272,6 +272,97 @@ def find_metadata_for_samples(
         db.close()
 
 
+def lookup_sample_metadata(
+    biom_sample_ids: list[str],
+    prefer_dataset_id: int | None = None,
+) -> dict[str, dict[str, str]]:
+    """Find DB metadata for each BIOM sample ID, across all pipeline datasets.
+
+    Each sample is matched independently (so combined tables get metadata
+    from every source dataset), using the same rule as
+    get_dataset_metadata_df: the BIOM ID equals the DB sample name or starts
+    with "name_". ``prefer_dataset_id`` is searched first, then the other
+    complete datasets newest first. Samples without metadata are omitted.
+    """
+    from app.db.database import SessionLocal
+    from app.db.models import Dataset, Sample
+
+    remaining = [str(s) for s in biom_sample_ids]
+    found: dict[str, dict[str, str]] = {}
+    db = SessionLocal()
+    try:
+        datasets = (
+            db.query(Dataset)
+            .filter(Dataset.status == "complete")
+            .order_by(Dataset.id.desc())
+            .all()
+        )
+        datasets.sort(key=lambda d: d.id != prefer_dataset_id)
+        for ds in datasets:
+            if not remaining:
+                break
+            samples = db.query(Sample).filter(Sample.dataset_id == ds.id).all()
+            # Longest names first, so "S1_2" is tried before "S1" for "S1_2_F"
+            samples.sort(key=lambda s: len(s.sample_name), reverse=True)
+            for bid in list(remaining):
+                for sample in samples:
+                    name = sample.sample_name
+                    if bid != name and not bid.startswith(name + "_"):
+                        continue
+                    md = {e.key: e.value or "" for e in sample.metadata_entries}
+                    if md:
+                        found[bid] = md
+                        remaining.remove(bid)
+                    break
+        return found
+    finally:
+        db.close()
+
+
+def embed_sample_metadata(biom_bytes: bytes, prefer_dataset_id: int | None = None) -> bytes:
+    """Return the BIOM with sample metadata from the DB written into it.
+
+    DB values win over metadata already in the file; samples the DB doesn't
+    know keep theirs. Returns the input unchanged if there is nothing to add.
+    """
+    import io
+
+    import h5py
+    from biom import Table
+
+    with h5py.File(io.BytesIO(biom_bytes), "r") as f:
+        table = Table.from_hdf5(f)
+
+    sample_ids = list(table.ids(axis="sample"))
+    db_md = lookup_sample_metadata(sample_ids, prefer_dataset_id)
+    if not db_md:
+        return biom_bytes
+
+    existing = table.metadata(axis="sample")
+    merged = []
+    for i, sid in enumerate(sample_ids):
+        md = dict(existing[i]) if existing is not None and existing[i] else {}
+        md.update(db_md.get(str(sid), {}))
+        # "/" would create an HDF5 subgroup; values are stored as text
+        merged.append({k.replace("/", "_"): "" if v is None else str(v) for k, v in md.items()})
+
+    # BIOM's HDF5 writer needs every sample to have every key
+    keys = list(dict.fromkeys(k for md in merged for k in md))
+    out = Table(
+        table.matrix_data,
+        observation_ids=table.ids(axis="observation"),
+        sample_ids=sample_ids,
+        observation_metadata=table.metadata(axis="observation"),
+        sample_metadata=[{k: md.get(k, "") for k in keys} for md in merged],
+        type=table.type or "OTU table",
+    )
+
+    buf = io.BytesIO()
+    with h5py.File(buf, "w") as f:
+        out.to_hdf5(f, generated_by="16S-Pipeline")
+    return buf.getvalue()
+
+
 def biom_to_count_df(biom_path: str) -> pd.DataFrame:
     """Load a BIOM table and return a features x samples DataFrame (integer counts)."""
     table = load_table(biom_path)

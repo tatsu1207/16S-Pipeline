@@ -344,9 +344,11 @@ def ss_on_subsample(n_clicks, checkbox_values, stats, biom_path, rarefy_depth):
             filename = f"subsampled_{len(checked_ids)}samples.biom"
             msg = f"Filtered to {len(checked_ids)} samples."
 
+        from app.analysis.shared import embed_sample_metadata
+
         return (
             dbc.Alert(msg, color="success"),
-            dcc.send_bytes(biom_bytes, filename=filename),
+            dcc.send_bytes(embed_sample_metadata(biom_bytes), filename=filename),
         )
     except Exception as e:
         return dbc.Alert(f"Subsample failed: {e}", color="danger"), no_update
