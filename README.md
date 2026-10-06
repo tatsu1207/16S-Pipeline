@@ -112,6 +112,21 @@ docker compose logs -f       # View logs
 PORT=9000 docker compose up -d
 ```
 
+### Updating to a new version
+
+`docker compose up -d` reuses the image already on your computer, so it never updates by itself. To get the latest version:
+
+```bash
+docker compose pull          # download the latest image
+docker compose up -d         # restart the container with it
+```
+
+Your data is kept (see below). To check which version you are running, open the [releases page](https://github.com/tatsu1207/16S-Pipeline/releases) and compare its date with:
+
+```bash
+docker image inspect ghcr.io/tatsu1207/16s-pipeline:latest --format "{{.Created}}"
+```
+
 ### Where is my data stored?
 
 All data (uploads, pipeline outputs, database) is stored in a Docker volume called `pipeline-data`. Your data persists across container restarts and updates.

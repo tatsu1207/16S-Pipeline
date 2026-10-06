@@ -92,19 +92,19 @@ RUN mamba create -n maaslin2_16S --override-channels -c conda-forge -c bioconda 
 RUN conda run -n maaslin2_16S Rscript -e \
     "install.packages(c('vegan', 'modeest'), repos='https://cloud.r-project.org', INSTALL_opts='--no-lock', Ncpus=4)"
 
-# Install LinDA from GitHub (retry on failure — GitHub API can be flaky).
-# Its dependencies come from conda above; a failed package install is only a
-# warning in R, so check that LinDA actually loads.
-RUN conda run -n maaslin2_16S Rscript -e " \
-    tryCatch( \
-        remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock'), \
-        error = function(e) { \
-            message('First attempt failed, retrying...'); \
-            Sys.sleep(10); \
-            remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock') \
-        } \
-    ); \
-    if (!requireNamespace('LinDA', quietly=TRUE)) stop('LinDA failed to install')"
+# Install LinDA from a pinned GitHub archive (v0.2.0, its latest commit,
+# 2023-12-16). A plain archive download, unlike remotes::install_github, isn't
+# subject to GitHub's API rate limit, which failed an arm64 build. Its
+# dependencies come from conda above; a failed install is only a warning in R,
+# so check that LinDA actually loads, and retry in case of a network hiccup.
+ARG LINDA_URL=https://github.com/zhouhj1994/LinDA/archive/af0f62fad83f25a0df272da9ccbec7db49149166.tar.gz
+RUN for attempt in 1 2 3; do \
+        conda run -n maaslin2_16S Rscript -e \
+            "install.packages('${LINDA_URL}', repos=NULL, type='source', INSTALL_opts='--no-lock')" && \
+        conda run -n maaslin2_16S Rscript -e "library(LinDA)" && break; \
+        echo "LinDA install attempt $attempt failed"; sleep 20; \
+    done; \
+    conda run -n maaslin2_16S Rscript -e "library(LinDA)"
 
 # Fail the build if any differential abundance package cannot be loaded
 RUN conda run -n analysis_16S Rscript -e " \

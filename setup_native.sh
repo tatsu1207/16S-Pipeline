@@ -130,14 +130,9 @@ if [ "$CHECK_ONLY" -eq 0 ]; then
         # modeest from CRAN: conda-forge has no linux-aarch64 r-stable (see Dockerfile)
         info "Installing vegan and modeest (CRAN) into maaslin2_16S"
         rscript maaslin2_16S "install.packages(c('vegan', 'modeest'), repos='https://cloud.r-project.org', INSTALL_opts='--no-lock', Ncpus=4)"
-        info "Installing LinDA (GitHub) into maaslin2_16S"
-        rscript maaslin2_16S "
-            tryCatch(
-                remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock'),
-                error = function(e) {
-                    message('First attempt failed, retrying...'); Sys.sleep(10)
-                    remotes::install_github('zhouhj1994/LinDA', upgrade='never', INSTALL_opts='--no-lock')
-                })"
+        # Pinned archive, not install_github (see Dockerfile)
+        info "Installing LinDA (GitHub archive) into maaslin2_16S"
+        rscript maaslin2_16S "install.packages('https://github.com/zhouhj1994/LinDA/archive/af0f62fad83f25a0df272da9ccbec7db49149166.tar.gz', repos=NULL, type='source', INSTALL_opts='--no-lock')"
     fi
 
     # 5. picrust2_16S — optional; no bioconda package outside Linux x86_64
