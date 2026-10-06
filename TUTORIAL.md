@@ -237,7 +237,7 @@ A key feature of 16S-Pipeline is the integration of five complementary different
 
 1. Click **Differential Abundance** in the left sidebar.
 2. Select your dataset and choose `source` as the grouping variable.
-3. Select one or more DA methods:
+3. Select a DA method (one per run):
 
 | Method | Approach | Characteristics |
 |--------|----------|-----------------|
@@ -259,9 +259,31 @@ A key feature of 16S-Pipeline is the integration of five complementary different
    - A **heatmap** of the significant taxa across samples (z-scored relative abundance), showing whether a difference holds in most samples or comes from a few
    - A **results table** with log-fold changes, p-values, and adjusted p-values
 
-6. The **Consensus** tab highlights ASVs detected as significant by multiple methods, providing a robust set of differentially abundant taxa.
+6. Run the same comparison with each method and compare the significant taxa. Download each results table (TSV) to line them up.
 
-> **Why use multiple methods?** Different DA methods can yield substantially different results on the same dataset. The consensus approach identifies the most robust findings — ASVs detected by 3+ methods are high-confidence candidates.
+> **Why use multiple methods?** Different DA methods can yield substantially different results on the same dataset. Taxa detected by several methods (e.g., 3 or more) are high-confidence candidates.
+
+> **Expect few or no significant taxa with the tutorial data.** With only 3 samples per group and about 2,000 reads per sample, no method reaches q < 0.05 at the ASV level, so the Errorbar and Heatmap tabs report no significant features. At **Genus** level, ALDEx2 and MaAsLin2 each find one significant genus. This is a real limitation of small studies, not a software problem. Use the practice dataset below to see what clear differences look like.
+
+### 8b. Practice Dataset with Known Answers
+
+`test_samples/da_demo/` contains a simulated dataset where the right answer is known: 16 samples (8 `Control`, 8 `Treatment`) and 300 ASVs with real taxonomy, of which 20 were made differentially abundant (10 up, 10 down, 3–10-fold).
+
+1. On the **Differential Abundance** page, upload `da_demo.biom`, then upload `da_demo_metadata.tsv` as the metadata file.
+2. Choose `group` as the grouping variable, `Control` as reference and `Treatment` as test, and click **Run**.
+3. Repeat with each method and compare the significant ASVs with the answer key in `da_demo_truth.tsv`.
+
+With the default settings (q < 0.05), the methods recover:
+
+| Method | Significant | Truly changed (of 20) | False positives |
+|--------|-------------|-----------------------|-----------------|
+| ALDEx2 | 12 | 12 | 0 |
+| ANCOM-BC2 | 17 | 17 | 0 |
+| DESeq2 | 20 | 20 | 0 |
+| LinDA | 17 | 17 | 0 |
+| MaAsLin2 | 22 | 17 | 5 |
+
+This shows the trade-offs between methods: ALDEx2 is the most conservative, while MaAsLin2 (which works on relative abundances) reports some unchanged taxa, because when some taxa increase, the relative abundance of all others decreases. The data are simulated (`make_da_demo.py` regenerates them), so use them for learning and testing, not as a biological example.
 
 ---
 

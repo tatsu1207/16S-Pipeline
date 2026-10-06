@@ -1,0 +1,21 @@
+feature	direction	true_fold_change	true_log2fc	taxonomy
+ASV_81	down	0.102	-3.298	Archaea; Crenarchaeota; Nitrososphaeria; Nitrososphaerales; Nitrososphaeraceae
+ASV_103	down	0.104	-3.269	Bacteria; Acidobacteriota; Vicinamibacteria; Vicinamibacterales
+ASV_17	down	0.114	-3.139	Bacteria; Firmicutes; Bacilli; Bacillales; Planococcaceae
+ASV_28	down	0.145	-2.788	Bacteria; Actinobacteriota
+ASV_59	down	0.146	-2.775	Bacteria; Acidobacteriota; Vicinamibacteria; Vicinamibacterales; Vicinamibacteraceae
+ASV_85	down	0.146	-2.775	Bacteria; Chloroflexi; KD4-96
+ASV_82	down	0.2	-2.32	Bacteria; Actinobacteriota; MB-A2-108
+ASV_105	down	0.207	-2.274	Bacteria; Acidobacteriota; Vicinamibacteria; Vicinamibacterales
+ASV_119	down	0.21	-2.254	Bacteria; Firmicutes; Bacilli; Bacillales
+ASV_15	down	0.22	-2.183	Bacteria; Firmicutes; Bacilli; Bacillales
+ASV_77	up	3.788	1.921	Bacteria; Acidobacteriota; Vicinamibacteria; Vicinamibacterales; Vicinamibacteraceae
+ASV_118	up	4.307	2.107	Bacteria; Actinobacteriota; Actinobacteria
+ASV_80	up	5.999	2.585	Bacteria; Actinobacteriota; Thermoleophilia; Gaiellales
+ASV_108	up	6.488	2.698	Bacteria; Chloroflexi; KD4-96
+ASV_109	up	6.819	2.769	Bacteria; Actinobacteriota; Actinobacteria; Pseudonocardiales; Pseudonocardiaceae; Pseudonocardia
+ASV_78	up	7.475	2.902	Bacteria; Firmicutes; Bacilli; Bacillales
+ASV_14	up	8.564	3.098	Archaea; Crenarchaeota; Nitrososphaeria; Nitrososphaerales; Nitrososphaeraceae
+ASV_86	up	8.656	3.114	Bacteria; Acidobacteriota; Blastocatellia; Pyrinomonadales; Pyrinomonadaceae; RB41
+ASV_40	up	8.937	3.16	Bacteria; Actinobacteriota; Rubrobacteria; Rubrobacterales; Rubrobacteriaceae; Rubrobacter
+ASV_19	up	9.017	3.173	Bacteria; RCP2-54
