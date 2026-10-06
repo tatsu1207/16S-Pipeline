@@ -14,7 +14,7 @@ from plotly.subplots import make_subplots
 from app.analysis.alpha import compute_alpha, run_alpha_stats
 from app.analysis.shared import (
     biom_to_count_df,
-    find_metadata_for_samples,
+    metadata_for_biom,
     get_dataset_metadata_df,
     get_group_columns,
     get_pipeline_biom_options,
@@ -212,14 +212,14 @@ def on_input_change(biom_contents, pipeline_value, meta_contents,
             biom_status = dbc.Alert(f"Uploaded BIOM: {n} samples", color="success")
 
             # Try to find matching metadata from pipeline datasets
-            match_df, match_sid, match_name = find_metadata_for_samples(sample_ids)
+            match_df, match_sid, match_name = metadata_for_biom(path, sample_ids)
             if match_df is not None:
                 meta_json = match_df.to_json(date_format="iso", orient="split")
                 sid_col = match_sid
                 gcols = get_group_columns(match_df, match_sid)
                 group_opts = [{"label": c, "value": c} for c in gcols]
                 meta_status = dbc.Alert(
-                    f"Metadata auto-matched from \"{match_name}\": "
+                    f"Metadata loaded from {match_name}: "
                     f"{len(match_df)} samples, {len(gcols)} group columns",
                     color="success",
                 )

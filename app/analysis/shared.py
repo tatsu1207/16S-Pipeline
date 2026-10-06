@@ -272,6 +272,52 @@ def find_metadata_for_samples(
         db.close()
 
 
+def embedded_metadata_df(biom_path: str) -> pd.DataFrame | None:
+    """Sample metadata stored inside a BIOM file, or None if it has none.
+
+    BIOM files downloaded from this app carry their samples' metadata (see
+    embed_sample_metadata), so an uploaded one doesn't need a separate file.
+    """
+    table = load_table(biom_path)
+    md = table.metadata(axis="sample")
+    if not md:
+        return None
+    rows = []
+    for sid, entry in zip(table.ids(axis="sample"), md):
+        row = {"SampleID": str(sid)}
+        for key, value in (entry or {}).items():
+            if isinstance(value, bytes):
+                value = value.decode()
+            row[key] = "" if value is None else str(value)
+        rows.append(row)
+    df = pd.DataFrame(rows)
+    values = df.drop(columns="SampleID")
+    if values.empty or not (values != "").any().any():
+        return None
+    return df
+
+
+def metadata_for_biom(
+    biom_path: str, sample_ids: list[str],
+) -> tuple[pd.DataFrame | None, str | None, str | None]:
+    """Metadata for an uploaded BIOM: embedded in the file first, else the database.
+
+    Returns (df, sample_id_col, source) where source describes where the
+    metadata came from (e.g. 'the BIOM file' or 'dataset "X"'), or
+    (None, None, None).
+    """
+    try:
+        df = embedded_metadata_df(biom_path)
+    except Exception:
+        df = None
+    if df is not None:
+        return df, "SampleID", "the BIOM file"
+    match_df, match_sid, match_name = find_metadata_for_samples(sample_ids)
+    if match_df is None:
+        return None, None, None
+    return match_df, match_sid, f'dataset "{match_name}"'
+
+
 def lookup_sample_metadata(
     biom_sample_ids: list[str],
     prefer_dataset_id: int | None = None,

@@ -63,7 +63,7 @@ methods_table = dbc.Table(
             ]),
             html.Tr([
                 html.Td("Differential Abundance"),
-                html.Td("ALDEx2, ANCOM-BC2, DESeq2, LinDA, MaAsLin2 (multi-method consensus)"),
+                html.Td("ALDEx2, ANCOM-BC2, DESeq2, LinDA, MaAsLin2"),
             ]),
             html.Tr([
                 html.Td("Taxonomy"),
@@ -149,7 +149,7 @@ layout = dbc.Container([
                 "Alpha diversity (6 metrics, group comparisons)",
                 "Beta diversity (PCoA, NMDS, PERMANOVA)",
                 "Taxonomy stacked bar plots (all ranks)",
-                "Differential abundance (5 methods + consensus)",
+                "Differential abundance (5 methods)",
                 "PICRUSt2 pathway comparison",
                 "KEGG pathway map viewer",
                 "Analysis report PDF generation",

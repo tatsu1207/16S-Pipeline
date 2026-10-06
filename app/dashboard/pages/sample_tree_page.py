@@ -24,7 +24,7 @@ from scipy.spatial.distance import squareform
 from app.analysis.beta import compute_confidence_ellipse, compute_distance, run_pcoa
 from app.analysis.shared import (
     biom_to_count_df,
-    find_metadata_for_samples,
+    metadata_for_biom,
     get_dataset_metadata_df,
     get_group_columns,
     get_pipeline_biom_options,
@@ -253,7 +253,7 @@ def st_on_input(pipeline_val, biom_contents, meta_contents,
         status_parts.append(f"Uploaded BIOM: {len(sample_ids)} samples")
 
         # Auto-match metadata from pipeline DB
-        match_df, match_sid, match_name = find_metadata_for_samples(sample_ids)
+        match_df, match_sid, match_name = metadata_for_biom(path, sample_ids)
         if match_df is not None:
             meta_json = match_df.to_json(date_format="iso", orient="split")
             sid_col = match_sid
@@ -261,7 +261,7 @@ def st_on_input(pipeline_val, biom_contents, meta_contents,
             group_opts = [{"label": c, "value": c} for c in gcols]
             group_disabled = len(gcols) == 0
             status_parts.append(
-                f'Metadata auto-matched from "{match_name}" ({len(gcols)} columns)'
+                f'Metadata loaded from {match_name} ({len(gcols)} columns)'
             )
             btn_disabled = len(gcols) == 0
         elif meta_json:

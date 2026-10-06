@@ -73,7 +73,7 @@ for group in ("Control", "Treatment"):
         groups.append(group)
 
 data = np.array(counts).T
-sample_md = [{"group": g, "depth": int(data[:, j].sum())} for j, g in enumerate(groups)]
+sample_md = [{"group": g} for g in groups]
 table = Table(data, obs_ids, samples, observation_metadata=obs_md,
               sample_metadata=sample_md, table_id="da_demo")
 with __import__("h5py").File(OUT / "da_demo.biom", "w") as f:

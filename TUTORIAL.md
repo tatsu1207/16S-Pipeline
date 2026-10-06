@@ -269,7 +269,7 @@ A key feature of 16S-Pipeline is the integration of five complementary different
 
 `test_samples/da_demo/` contains a simulated dataset where the right answer is known: 16 samples (8 `Control`, 8 `Treatment`) and 300 ASVs with real taxonomy, of which 20 were made differentially abundant (10 up, 10 down, 3–10-fold).
 
-1. On the **Differential Abundance** page, upload `da_demo.biom`, then upload `da_demo_metadata.tsv` as the metadata file.
+1. On the **Differential Abundance** page, upload `da_demo.biom`. Its sample groups are stored in the file, so no metadata file is needed (`da_demo_metadata.tsv` is included for other tools).
 2. Choose `group` as the grouping variable, `Control` as reference and `Treatment` as test, and click **Run**.
 3. Repeat with each method and compare the significant ASVs with the answer key in `da_demo_truth.tsv`.
 
